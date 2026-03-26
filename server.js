@@ -1,31 +1,43 @@
 const express = require('express');
 const WebSocket = require('ws');
 const path = require('path');
+const os = require('os');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 
 const server = app.listen(PORT, () => {
     console.log(`🚀 Signaling server running on port ${PORT}`);
     console.log(`📡 WebSocket endpoint: ws://localhost:${PORT}`);
+    
+    // Get local IP for network testing
+    const networkInterfaces = os.networkInterfaces();
+    console.log('\n🌐 Available on:');
+    console.log(`   http://localhost:${PORT}`);
+    for (const [name, interfaces] of Object.entries(networkInterfaces)) {
+        for (const iface of interfaces) {
+            if (iface.family === 'IPv4' && !iface.internal) {
+                console.log(`   http://${iface.address}:${PORT}`);
+            }
+        }
+    }
+    console.log('');
 });
 
 const wss = new WebSocket.Server({ server });
 
-// Store active peers with unique keys
-const activePeers = new Map(); // peerId -> { ws, name, room }
-
-// Prevent duplicate connections from same browser instance
-const sessionIds = new Map(); // ip + userAgent -> peerId
+// Store active peers
+const activePeers = new Map();
 
 wss.on('connection', (ws, req) => {
     let peerId = null;
     let peerName = null;
-    let sessionKey = null;
+    const clientIp = req.socket.remoteAddress;
     
-    console.log(`🔌 New connection from ${req.socket.remoteAddress}`);
+    console.log(`🔌 New connection from ${clientIp}`);
     
     ws.on('message', (message) => {
         try {
@@ -33,33 +45,16 @@ wss.on('connection', (ws, req) => {
             
             switch(data.type) {
                 case 'register':
-                    // Create a session key to prevent duplicates
-                    sessionKey = `${req.socket.remoteAddress}_${data.peerName}`;
-                    
-                    // Remove any existing connection with same session
-                    if (sessionIds.has(sessionKey)) {
-                        const oldPeerId = sessionIds.get(sessionKey);
-                        if (activePeers.has(oldPeerId)) {
-                            console.log(`Removing duplicate session for ${data.peerName}`);
-                            const oldPeer = activePeers.get(oldPeerId);
-                            if (oldPeer.ws.readyState === WebSocket.OPEN) {
-                                oldPeer.ws.close();
-                            }
-                            activePeers.delete(oldPeerId);
-                        }
-                    }
-                    
                     peerId = data.peerId;
                     peerName = data.peerName;
                     
-                    // Store peer
                     activePeers.set(peerId, {
                         ws,
                         name: peerName,
+                        ip: clientIp,
                         room: data.room || 'default',
                         connectedAt: Date.now()
                     });
-                    sessionIds.set(sessionKey, peerId);
                     
                     console.log(`✅ Registered: ${peerName} (${peerId}) - Total: ${activePeers.size}`);
                     
@@ -78,10 +73,11 @@ wss.on('connection', (ws, req) => {
                     ws.send(JSON.stringify({
                         type: 'peer_list',
                         peers: otherPeers,
-                        yourId: peerId
+                        yourId: peerId,
+                        yourName: peerName
                     }));
                     
-                    // Announce new peer to others (only if not reconnecting)
+                    // Announce new peer to others
                     if (otherPeers.length > 0) {
                         broadcastToOthers(peerId, {
                             type: 'peer_joined',
@@ -95,7 +91,6 @@ wss.on('connection', (ws, req) => {
                 case 'webrtc_offer':
                 case 'webrtc_answer':
                 case 'webrtc_ice_candidate':
-                    // Forward to target peer
                     const targetPeer = activePeers.get(data.targetId);
                     if (targetPeer && targetPeer.ws.readyState === WebSocket.OPEN) {
                         targetPeer.ws.send(JSON.stringify({
@@ -103,9 +98,9 @@ wss.on('connection', (ws, req) => {
                             fromId: peerId,
                             fromName: peerName
                         }));
-                        console.log(`📤 Forwarded ${data.type} from ${peerName} to ${data.targetId}`);
+                        console.log(`📤 ${data.type} from ${peerName} → ${targetPeer.name}`);
                     } else {
-                        console.log(`❌ Target ${data.targetId} not found`);
+                        console.log(`❌ Target not found: ${data.targetId}`);
                         ws.send(JSON.stringify({
                             type: 'error',
                             message: 'Target peer not available'
@@ -118,15 +113,14 @@ wss.on('connection', (ws, req) => {
                     break;
             }
         } catch (error) {
-            console.error('Error processing message:', error);
+            console.error('Error:', error);
         }
     });
     
     ws.on('close', () => {
         if (peerId) {
-            console.log(`🔌 Disconnected: ${peerName || peerId}`);
+            console.log(`🔌 Disconnected: ${peerName || peerId} (${clientIp})`);
             activePeers.delete(peerId);
-            if (sessionKey) sessionIds.delete(sessionKey);
             
             broadcastToAll({
                 type: 'peer_left',
@@ -135,12 +129,8 @@ wss.on('connection', (ws, req) => {
                 timestamp: Date.now()
             });
             
-            console.log(`📊 Active peers remaining: ${activePeers.size}`);
+            console.log(`📊 Active peers: ${activePeers.size}`);
         }
-    });
-    
-    ws.on('error', (error) => {
-        console.error('WebSocket error:', error);
     });
 });
 
@@ -166,8 +156,26 @@ app.get('/health', (req, res) => {
     res.json({
         status: 'healthy',
         activePeers: activePeers.size,
+        peers: Array.from(activePeers.entries()).map(([id, p]) => ({
+            id: id,
+            name: p.name,
+            ip: p.ip,
+            connectedAt: p.connectedAt
+        })),
         uptime: process.uptime()
     });
 });
 
-console.log('✅ Server ready');
+app.get('/stats', (req, res) => {
+    res.json({
+        totalPeers: activePeers.size,
+        peers: Array.from(activePeers.entries()).map(([id, p]) => ({
+            id: id,
+            name: p.name,
+            ip: p.ip
+        }))
+    });
+});
+
+console.log('✅ Server ready for cross-device testing!');
+console.log('💡 Connect from your phone using the local IP address\n');
