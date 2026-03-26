@@ -206,6 +206,11 @@
             font-size: 0.9rem;
         }
 
+        .input-area input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
         .input-area button {
             padding: 10px 20px;
             background: #667eea;
@@ -214,6 +219,10 @@
             border-radius: 10px;
             cursor: pointer;
             font-weight: 600;
+        }
+
+        .input-area button:active {
+            transform: scale(0.98);
         }
 
         .settings-panel {
@@ -243,6 +252,10 @@
             cursor: pointer;
         }
 
+        .settings-panel button:active {
+            transform: scale(0.98);
+        }
+
         .debug-panel {
             font-size: 0.65rem;
             padding: 8px;
@@ -253,10 +266,12 @@
             max-height: 150px;
             overflow-y: auto;
             white-space: pre-wrap;
+            word-break: break-all;
         }
 
-        button:active {
-            transform: scale(0.98);
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
     </style>
 </head>
@@ -278,13 +293,13 @@
                 <div id="peerCount">0 online</div>
             </div>
             <div class="peer-list" id="peerList">
-                <div style="text-align: center; padding: 20px;">Connect to see peers</div>
+                <div style="text-align: center; padding: 20px; color: #9ca3af;">Connect to see peers</div>
             </div>
         </div>
         
         <div class="chat-area">
             <div class="messages" id="messages">
-                <div style="text-align: center; padding: 40px;">✨ Send a message</div>
+                <div style="text-align: center; color: #9ca3af; padding: 40px;">✨ Send a message</div>
             </div>
             <div class="input-area">
                 <input type="text" id="messageInput" placeholder="Type message..." disabled>
@@ -292,207 +307,158 @@
             </div>
             <div class="settings-panel">
                 <label>Name:</label>
-                <input type="text" id="nameInput" style="width: 100px;">
+                <input type="text" id="nameInput" style="width: 100px;" value="User">
                 <button id="updateNameBtn">Update</button>
                 <label>Server:</label>
                 <input type="text" id="serverUrl" placeholder="wss://your-server.onrender.com" style="min-width: 200px;">
                 <button id="connectBtn">Connect</button>
-                <button id="retryBtn" style="background:#f59e0b;">Retry Connection</button>
+                <button id="retryBtn" style="background:#f59e0b;">Retry</button>
             </div>
             <div class="debug-panel" id="debugPanel">
-                💡 Ready to connect
+                💡 Ready to connect<br>
+                Enter your Render.com WebSocket URL and click Connect
             </div>
         </div>
     </div>
 </div>
 
 <script>
-    class WebRTCDebugClient {
-        constructor() {
-            this.ws = null;
-            this.localPeerId = null;
-            this.localPeerName = localStorage.getItem('peerName') || this.getRandomName();
-            this.peers = new Map();
-            this.connections = new Map();
-            this.logs = [];
-            
-            // DOM
-            this.peerListDiv = document.getElementById('peerList');
-            this.messagesDiv = document.getElementById('messages');
-            this.messageInput = document.getElementById('messageInput');
-            this.sendBtn = document.getElementById('sendBtn');
-            this.nameInput = document.getElementById('nameInput');
-            this.serverUrlInput = document.getElementById('serverUrl');
-            this.connectBtn = document.getElementById('connectBtn');
-            this.retryBtn = document.getElementById('retryBtn');
-            this.connectionStatus = document.getElementById('connectionStatus');
-            this.peerCountSpan = document.getElementById('peerCount');
-            this.debugPanel = document.getElementById('debugPanel');
-            
-            this.nameInput.value = this.localPeerName;
-            
-            const savedUrl = localStorage.getItem('serverUrl');
-            if (savedUrl) {
-                this.serverUrlInput.value = savedUrl;
+    (function() {
+        // DOM Elements
+        const elements = {
+            peerListDiv: document.getElementById('peerList'),
+            messagesDiv: document.getElementById('messages'),
+            messageInput: document.getElementById('messageInput'),
+            sendBtn: document.getElementById('sendBtn'),
+            nameInput: document.getElementById('nameInput'),
+            serverUrlInput: document.getElementById('serverUrl'),
+            connectBtn: document.getElementById('connectBtn'),
+            retryBtn: document.getElementById('retryBtn'),
+            updateNameBtn: document.getElementById('updateNameBtn'),
+            connectionStatus: document.getElementById('connectionStatus'),
+            peerCountSpan: document.getElementById('peerCount'),
+            debugPanel: document.getElementById('debugPanel')
+        };
+        
+        // Check all elements exist
+        for (const [key, el] of Object.entries(elements)) {
+            if (!el) {
+                console.error(`Element ${key} not found!`);
+                alert(`Error: Element ${key} not found. Please check HTML.`);
+                return;
             }
-            
-            this.bindEvents();
         }
         
-        log(msg, type = 'info') {
+        // State
+        let ws = null;
+        let localPeerId = null;
+        let localPeerName = localStorage.getItem('peerName') || 'User' + Math.floor(Math.random() * 100);
+        let peers = new Map();
+        let connections = new Map();
+        let logs = [];
+        
+        // Initialize
+        elements.nameInput.value = localPeerName;
+        
+        const savedUrl = localStorage.getItem('serverUrl');
+        if (savedUrl) {
+            elements.serverUrlInput.value = savedUrl;
+        }
+        
+        // Helper functions
+        function log(msg, type = 'info') {
             const timestamp = new Date().toLocaleTimeString();
-            const colors = { info: '#4ade80', error: '#ef4444', warn: '#f59e0b' };
-            this.logs.unshift(`[${timestamp}] ${msg}`);
-            if (this.logs.length > 20) this.logs.pop();
-            this.debugPanel.innerHTML = this.logs.map(l => `> ${l}`).join('<br>');
+            logs.unshift(`[${timestamp}] ${msg}`);
+            if (logs.length > 20) logs.pop();
+            elements.debugPanel.innerHTML = logs.map(l => `> ${l}`).join('<br>');
             console.log(msg);
         }
         
-        getRandomName() {
-            const names = ['User', 'Device', 'Client', 'Node'];
-            return `${names[Math.floor(Math.random() * names.length)]}${Math.floor(Math.random() * 100)}`;
+        function setStatus(text, isConnected = false) {
+            elements.connectionStatus.textContent = text;
+            if (isConnected) {
+                elements.connectionStatus.className = 'connection-status connected';
+            } else {
+                elements.connectionStatus.className = 'connection-status';
+            }
         }
         
-        bindEvents() {
-            this.sendBtn.onclick = () => this.sendMessage();
-            this.messageInput.onkeypress = (e) => { if (e.key === 'Enter') this.sendMessage(); };
-            this.updateNameBtn.onclick = () => this.updateName();
-            this.connectBtn.onclick = () => this.connect();
-            this.retryBtn.onclick = () => this.retryConnections();
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
         
-        connect() {
-            let url = this.serverUrlInput.value.trim();
-            if (!url) {
-                alert('Enter server URL');
+        function addSystemMessage(text) {
+            const sysDiv = document.createElement('div');
+            sysDiv.className = 'system-message';
+            sysDiv.innerHTML = `<span>${escapeHtml(text)}</span>`;
+            elements.messagesDiv.appendChild(sysDiv);
+            elements.messagesDiv.scrollTop = elements.messagesDiv.scrollHeight;
+        }
+        
+        function addMessage(sender, text, isSelf) {
+            // Remove placeholder if exists
+            if (elements.messagesDiv.children.length === 1 && 
+                elements.messagesDiv.children[0].innerText.includes('Send a message')) {
+                elements.messagesDiv.innerHTML = '';
+            }
+            
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${isSelf ? 'self' : ''}`;
+            msgDiv.innerHTML = `
+                <div class="message-bubble">
+                    <div class="message-sender">${escapeHtml(sender)}</div>
+                    <div class="message-text">${escapeHtml(text)}</div>
+                </div>
+            `;
+            elements.messagesDiv.appendChild(msgDiv);
+            elements.messagesDiv.scrollTop = elements.messagesDiv.scrollHeight;
+        }
+        
+        function renderPeers() {
+            const peersArray = Array.from(peers.entries());
+            const connectedCount = Array.from(peers.values()).filter(p => p.status === 'connected').length;
+            elements.peerCountSpan.textContent = `${connectedCount}/${peersArray.length} connected`;
+            
+            if (peersArray.length === 0) {
+                elements.peerListDiv.innerHTML = '<div style="text-align: center; padding: 20px; color: #9ca3af;">No peers online</div>';
                 return;
             }
             
-            localStorage.setItem('serverUrl', url);
-            this.log(`Connecting to ${url}`);
-            this.setStatus('Connecting...');
-            
-            if (this.ws) this.ws.close();
-            
-            try {
-                this.ws = new WebSocket(url);
-                this.ws.onopen = () => this.onOpen();
-                this.ws.onmessage = (e) => this.onMessage(e);
-                this.ws.onerror = (e) => this.log(`WS Error: ${e}`, 'error');
-                this.ws.onclose = () => this.onClose();
-            } catch (err) {
-                this.log(`Connection failed: ${err.message}`, 'error');
+            elements.peerListDiv.innerHTML = peersArray.map(([id, peer]) => `
+                <div class="peer-item ${peer.status}">
+                    <div class="peer-name">${escapeHtml(peer.name)}</div>
+                    <div class="peer-status ${peer.status}">
+                        ${peer.status === 'connected' ? '● Connected' : '○ Connecting...'}
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function removePeer(peerId) {
+            const conn = connections.get(peerId);
+            if (conn && conn.pc) {
+                try { conn.pc.close(); } catch(e) {}
             }
+            connections.delete(peerId);
+            peers.delete(peerId);
+            renderPeers();
         }
         
-        onOpen() {
-            this.log('WebSocket connected');
-            this.setStatus('Connected');
-            
-            this.localPeerId = 'peer_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
-            this.log(`Registering as ${this.localPeerName} (${this.localPeerId})`);
-            
-            this.ws.send(JSON.stringify({
-                type: 'register',
-                peerId: this.localPeerId,
-                peerName: this.localPeerName
-            }));
-            
-            this.messageInput.disabled = false;
-            this.sendBtn.disabled = false;
+        function addPeer(peerId, name) {
+            peers.set(peerId, { name, status: 'connecting' });
+            renderPeers();
         }
         
-        onMessage(event) {
-            const data = JSON.parse(event.data);
-            this.log(`Received: ${data.type}`);
-            
-            switch(data.type) {
-                case 'peer_list':
-                    this.log(`Peer list: ${data.peers.length} peers`);
-                    data.peers.forEach(peer => {
-                        if (!this.peers.has(peer.peerId)) {
-                            this.addPeer(peer.peerId, peer.peerName);
-                            setTimeout(() => this.initiateConnection(peer.peerId, peer.peerName), 1000);
-                        }
-                    });
-                    this.renderPeers();
-                    break;
-                    
-                case 'peer_joined':
-                    if (data.peerId !== this.localPeerId && !this.peers.has(data.peerId)) {
-                        this.log(`New peer joined: ${data.peerName}`);
-                        this.addPeer(data.peerId, data.peerName);
-                        this.addSystemMessage(`${data.peerName} joined`);
-                        setTimeout(() => this.initiateConnection(data.peerId, data.peerName), 1000);
-                    }
-                    break;
-                    
-                case 'peer_left':
-                    if (this.peers.has(data.peerId)) {
-                        const peer = this.peers.get(data.peerId);
-                        this.log(`Peer left: ${peer.name}`);
-                        this.addSystemMessage(`${peer.name} left`);
-                        this.removePeer(data.peerId);
-                    }
-                    break;
-                    
-                case 'webrtc_offer':
-                    this.log(`📨 Offer from ${data.fromName}`);
-                    this.handleOffer(data.fromId, data.fromName, data.sdp);
-                    break;
-                    
-                case 'webrtc_answer':
-                    this.log(`📨 Answer from ${data.fromId}`);
-                    this.handleAnswer(data.fromId, data.sdp);
-                    break;
-                    
-                case 'webrtc_ice_candidate':
-                    this.handleIceCandidate(data.fromId, data.candidate);
-                    break;
-            }
-        }
-        
-        onClose() {
-            this.log('WebSocket disconnected', 'warn');
-            this.setStatus('Disconnected');
-            this.messageInput.disabled = true;
-            this.sendBtn.disabled = true;
-            
-            for (const [id, conn] of this.connections) {
-                if (conn.pc) conn.pc.close();
-            }
-            this.connections.clear();
-            this.peers.clear();
-            this.renderPeers();
-            
-            setTimeout(() => {
-                if (!this.ws || this.ws.readyState === WebSocket.CLOSED) {
-                    this.log('Auto-reconnecting...');
-                    this.connect();
-                }
-            }, 5000);
-        }
-        
-        addPeer(peerId, name) {
-            this.peers.set(peerId, { name, status: 'connecting' });
-            this.renderPeers();
-        }
-        
-        removePeer(peerId) {
-            const conn = this.connections.get(peerId);
-            if (conn && conn.pc) conn.pc.close();
-            this.connections.delete(peerId);
-            this.peers.delete(peerId);
-            this.renderPeers();
-        }
-        
-        async initiateConnection(peerId, peerName) {
-            if (this.connections.has(peerId)) {
-                this.log(`Already connecting to ${peerName}`);
+        // WebRTC Functions
+        async function initiateConnection(peerId, peerName) {
+            if (connections.has(peerId)) {
+                log(`Already connecting to ${peerName}`);
                 return;
             }
             
-            this.log(`🔌 Initiating connection to ${peerName}...`);
+            log(`🔌 Initiating connection to ${peerName}...`);
             
             try {
                 const pc = new RTCPeerConnection({
@@ -504,92 +470,91 @@
                 });
                 
                 const dc = pc.createDataChannel('chat');
-                this.connections.set(peerId, { pc, dc, name: peerName });
+                connections.set(peerId, { pc, dc, name: peerName });
                 
                 dc.onopen = () => {
-                    this.log(`✅ Data channel OPEN with ${peerName}`);
-                    if (this.peers.has(peerId)) {
-                        this.peers.get(peerId).status = 'connected';
-                        this.renderPeers();
-                        this.addSystemMessage(`✅ Connected to ${peerName}`);
+                    log(`✅ Data channel OPEN with ${peerName}`);
+                    if (peers.has(peerId)) {
+                        peers.get(peerId).status = 'connected';
+                        renderPeers();
+                        addSystemMessage(`✅ Connected to ${peerName}`);
                     }
                 };
                 
                 dc.onclose = () => {
-                    this.log(`❌ Data channel CLOSED with ${peerName}`, 'warn');
-                    if (this.peers.has(peerId)) {
-                        this.peers.get(peerId).status = 'disconnected';
-                        this.renderPeers();
+                    log(`❌ Data channel CLOSED with ${peerName}`);
+                    if (peers.has(peerId)) {
+                        peers.get(peerId).status = 'disconnected';
+                        renderPeers();
                     }
                 };
                 
-                dc.onerror = (err) => {
-                    this.log(`Data channel error: ${err}`, 'error');
-                };
-                
                 dc.onmessage = (e) => {
-                    const msg = JSON.parse(e.data);
-                    if (msg.type === 'chat') {
-                        this.addMessage(msg.sender, msg.text, msg.senderId === this.localPeerId);
+                    try {
+                        const msg = JSON.parse(e.data);
+                        if (msg.type === 'chat') {
+                            addMessage(msg.sender, msg.text, msg.senderId === localPeerId);
+                        }
+                    } catch (err) {
+                        log(`Message error: ${err.message}`);
                     }
                 };
                 
                 pc.onicecandidate = (e) => {
-                    if (e.candidate) {
-                        this.log(`📡 ICE candidate sent to ${peerName}`);
-                        this.ws.send(JSON.stringify({
+                    if (e.candidate && ws && ws.readyState === WebSocket.OPEN) {
+                        log(`📡 ICE candidate sent to ${peerName}`);
+                        ws.send(JSON.stringify({
                             type: 'webrtc_ice_candidate',
                             targetId: peerId,
                             candidate: e.candidate
                         }));
-                    } else {
-                        this.log(`✅ ICE gathering complete for ${peerName}`);
                     }
                 };
                 
                 pc.oniceconnectionstatechange = () => {
-                    this.log(`ICE state with ${peerName}: ${pc.iceConnectionState}`);
+                    log(`ICE state with ${peerName}: ${pc.iceConnectionState}`);
                     if (pc.iceConnectionState === 'connected') {
-                        this.log(`🎉 ICE CONNECTED to ${peerName}!`);
+                        log(`🎉 ICE CONNECTED to ${peerName}!`);
                     } else if (pc.iceConnectionState === 'failed') {
-                        this.log(`❌ ICE FAILED with ${peerName}`, 'error');
-                        this.log(`   This usually means devices cannot reach each other directly`, 'warn');
-                        this.log(`   Try: Both devices on same WiFi, or use TURN server`, 'warn');
+                        log(`❌ ICE FAILED with ${peerName}`, 'error');
+                        log(`   Check: Both devices on same network? Firewall?`, 'warn');
                     }
                 };
                 
                 const offer = await pc.createOffer();
                 await pc.setLocalDescription(offer);
-                this.log(`📤 Sending offer to ${peerName}`);
+                log(`📤 Sending offer to ${peerName}`);
                 
-                this.ws.send(JSON.stringify({
-                    type: 'webrtc_offer',
-                    targetId: peerId,
-                    sdp: pc.localDescription
-                }));
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                        type: 'webrtc_offer',
+                        targetId: peerId,
+                        sdp: pc.localDescription
+                    }));
+                }
                 
                 // Timeout
                 setTimeout(() => {
-                    const conn = this.connections.get(peerId);
+                    const conn = connections.get(peerId);
                     if (conn && conn.dc.readyState !== 'open') {
-                        this.log(`⏰ Connection timeout for ${peerName}`, 'warn');
-                        this.removePeer(peerId);
+                        log(`⏰ Connection timeout for ${peerName}`, 'warn');
+                        removePeer(peerId);
                     }
                 }, 30000);
                 
             } catch (err) {
-                this.log(`Connection error: ${err.message}`, 'error');
-                this.removePeer(peerId);
+                log(`Connection error: ${err.message}`, 'error');
+                removePeer(peerId);
             }
         }
         
-        async handleOffer(fromId, fromName, sdp) {
-            if (this.connections.has(fromId)) {
-                this.log(`Already have connection to ${fromName}, ignoring offer`);
+        async function handleOffer(fromId, fromName, sdp) {
+            if (connections.has(fromId)) {
+                log(`Already have connection to ${fromName}, ignoring offer`);
                 return;
             }
             
-            this.log(`📞 Handling offer from ${fromName}...`);
+            log(`📞 Handling offer from ${fromName}...`);
             
             try {
                 const pc = new RTCPeerConnection({
@@ -603,29 +568,31 @@
                 
                 pc.ondatachannel = (e) => {
                     dc = e.channel;
-                    this.log(`📡 Data channel received from ${fromName}`);
-                    this.connections.set(fromId, { pc, dc, name: fromName });
+                    log(`📡 Data channel received from ${fromName}`);
+                    connections.set(fromId, { pc, dc, name: fromName });
                     
                     dc.onopen = () => {
-                        this.log(`✅ Data channel OPEN with ${fromName}`);
-                        if (this.peers.has(fromId)) {
-                            this.peers.get(fromId).status = 'connected';
-                            this.renderPeers();
-                            this.addSystemMessage(`✅ Connected to ${fromName}`);
+                        log(`✅ Data channel OPEN with ${fromName}`);
+                        if (peers.has(fromId)) {
+                            peers.get(fromId).status = 'connected';
+                            renderPeers();
+                            addSystemMessage(`✅ Connected to ${fromName}`);
                         }
                     };
                     
                     dc.onmessage = (e) => {
-                        const msg = JSON.parse(e.data);
-                        if (msg.type === 'chat') {
-                            this.addMessage(msg.sender, msg.text, false);
-                        }
+                        try {
+                            const msg = JSON.parse(e.data);
+                            if (msg.type === 'chat') {
+                                addMessage(msg.sender, msg.text, false);
+                            }
+                        } catch (err) {}
                     };
                 };
                 
                 pc.onicecandidate = (e) => {
-                    if (e.candidate) {
-                        this.ws.send(JSON.stringify({
+                    if (e.candidate && ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({
                             type: 'webrtc_ice_candidate',
                             targetId: fromId,
                             candidate: e.candidate
@@ -634,64 +601,186 @@
                 };
                 
                 pc.oniceconnectionstatechange = () => {
-                    this.log(`ICE state with ${fromName}: ${pc.iceConnectionState}`);
+                    log(`ICE state with ${fromName}: ${pc.iceConnectionState}`);
                 };
                 
                 await pc.setRemoteDescription(new RTCSessionDescription(sdp));
                 const answer = await pc.createAnswer();
                 await pc.setLocalDescription(answer);
                 
-                this.ws.send(JSON.stringify({
-                    type: 'webrtc_answer',
-                    targetId: fromId,
-                    sdp: pc.localDescription
-                }));
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                        type: 'webrtc_answer',
+                        targetId: fromId,
+                        sdp: pc.localDescription
+                    }));
+                }
                 
-                this.log(`📤 Sent answer to ${fromName}`);
+                log(`📤 Sent answer to ${fromName}`);
                 
             } catch (err) {
-                this.log(`Offer handling error: ${err.message}`, 'error');
+                log(`Offer handling error: ${err.message}`, 'error');
             }
         }
         
-        async handleAnswer(fromId, sdp) {
-            const conn = this.connections.get(fromId);
+        async function handleAnswer(fromId, sdp) {
+            const conn = connections.get(fromId);
             if (conn && conn.pc && !conn.pc.remoteDescription) {
-                await conn.pc.setRemoteDescription(new RTCSessionDescription(sdp));
-                this.log(`✅ Remote description set for ${conn.name}`);
-            }
-        }
-        
-        async handleIceCandidate(fromId, candidate) {
-            const conn = this.connections.get(fromId);
-            if (conn && conn.pc && conn.pc.remoteDescription) {
-                await conn.pc.addIceCandidate(new RTCIceCandidate(candidate));
-                this.log(`❄️ ICE candidate added for ${conn.name}`);
-            }
-        }
-        
-        retryConnections() {
-            this.log('🔄 Retrying all connections...');
-            for (const [peerId, peer] of this.peers) {
-                if (peer.status !== 'connected') {
-                    this.initiateConnection(peerId, peer.name);
+                try {
+                    await conn.pc.setRemoteDescription(new RTCSessionDescription(sdp));
+                    log(`✅ Remote description set for ${conn.name}`);
+                } catch (err) {
+                    log(`Answer error: ${err.message}`, 'error');
                 }
             }
         }
         
-        sendMessage() {
-            const text = this.messageInput.value.trim();
+        async function handleIceCandidate(fromId, candidate) {
+            const conn = connections.get(fromId);
+            if (conn && conn.pc && conn.pc.remoteDescription) {
+                try {
+                    await conn.pc.addIceCandidate(new RTCIceCandidate(candidate));
+                    log(`❄️ ICE candidate added for ${conn.name}`);
+                } catch (err) {
+                    log(`ICE candidate error: ${err.message}`, 'error');
+                }
+            }
+        }
+        
+        // WebSocket functions
+        function connect() {
+            let url = elements.serverUrlInput.value.trim();
+            if (!url) {
+                alert('Please enter server URL');
+                return;
+            }
+            
+            localStorage.setItem('serverUrl', url);
+            log(`Connecting to ${url}`);
+            setStatus('Connecting...');
+            
+            if (ws) {
+                try { ws.close(); } catch(e) {}
+            }
+            
+            try {
+                ws = new WebSocket(url);
+                ws.onopen = onOpen;
+                ws.onmessage = onMessage;
+                ws.onerror = (e) => log(`WS Error: ${e}`, 'error');
+                ws.onclose = onClose;
+            } catch (err) {
+                log(`Connection failed: ${err.message}`, 'error');
+                setStatus('Failed');
+            }
+        }
+        
+        function onOpen() {
+            log('WebSocket connected');
+            setStatus('Connected', true);
+            
+            localPeerId = 'peer_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+            log(`Registering as ${localPeerName} (${localPeerId})`);
+            
+            ws.send(JSON.stringify({
+                type: 'register',
+                peerId: localPeerId,
+                peerName: localPeerName
+            }));
+            
+            elements.messageInput.disabled = false;
+            elements.sendBtn.disabled = false;
+        }
+        
+        function onMessage(event) {
+            try {
+                const data = JSON.parse(event.data);
+                log(`Received: ${data.type}`);
+                
+                switch(data.type) {
+                    case 'peer_list':
+                        log(`Peer list: ${data.peers.length} peers`);
+                        data.peers.forEach(peer => {
+                            if (!peers.has(peer.peerId)) {
+                                addPeer(peer.peerId, peer.peerName);
+                                setTimeout(() => initiateConnection(peer.peerId, peer.peerName), 1000);
+                            }
+                        });
+                        break;
+                        
+                    case 'peer_joined':
+                        if (data.peerId !== localPeerId && !peers.has(data.peerId)) {
+                            log(`New peer joined: ${data.peerName}`);
+                            addPeer(data.peerId, data.peerName);
+                            addSystemMessage(`${data.peerName} joined`);
+                            setTimeout(() => initiateConnection(data.peerId, data.peerName), 1000);
+                        }
+                        break;
+                        
+                    case 'peer_left':
+                        if (peers.has(data.peerId)) {
+                            const peer = peers.get(data.peerId);
+                            log(`Peer left: ${peer.name}`);
+                            addSystemMessage(`${peer.name} left`);
+                            removePeer(data.peerId);
+                        }
+                        break;
+                        
+                    case 'webrtc_offer':
+                        log(`📨 Offer from ${data.fromName}`);
+                        handleOffer(data.fromId, data.fromName, data.sdp);
+                        break;
+                        
+                    case 'webrtc_answer':
+                        log(`📨 Answer from ${data.fromId}`);
+                        handleAnswer(data.fromId, data.sdp);
+                        break;
+                        
+                    case 'webrtc_ice_candidate':
+                        handleIceCandidate(data.fromId, data.candidate);
+                        break;
+                }
+            } catch (err) {
+                log(`Message error: ${err.message}`, 'error');
+            }
+        }
+        
+        function onClose() {
+            log('WebSocket disconnected', 'warn');
+            setStatus('Disconnected');
+            elements.messageInput.disabled = true;
+            elements.sendBtn.disabled = true;
+            
+            // Clean up connections
+            for (const [id, conn] of connections) {
+                try { conn.pc.close(); } catch(e) {}
+            }
+            connections.clear();
+            peers.clear();
+            renderPeers();
+            
+            // Auto reconnect
+            setTimeout(() => {
+                if (!ws || ws.readyState === WebSocket.CLOSED) {
+                    log('Auto-reconnecting...');
+                    connect();
+                }
+            }, 5000);
+        }
+        
+        function sendMessage() {
+            const text = elements.messageInput.value.trim();
             if (!text) return;
             
             const message = {
                 type: 'chat',
-                sender: this.localPeerName,
-                senderId: this.localPeerId,
+                sender: localPeerName,
+                senderId: localPeerId,
                 text: text
             };
             
             let sent = 0;
-            for (const [id, conn] of this.connections) {
+            for (const [id, conn] of connections) {
                 if (conn.dc && conn.dc.readyState === 'open') {
                     conn.dc.send(JSON.stringify(message));
                     sent++;
@@ -699,91 +788,54 @@
             }
             
             if (sent > 0) {
-                this.addMessage(this.localPeerName, text, true);
-                this.messageInput.value = '';
-                this.log(`📤 Message sent to ${sent} peer(s)`);
+                addMessage(localPeerName, text, true);
+                elements.messageInput.value = '';
+                log(`📤 Message sent to ${sent} peer(s)`);
             } else {
-                this.log(`❌ No connected peers to send to`, 'warn');
-                this.addSystemMessage('No connected peers');
+                log(`❌ No connected peers to send to`, 'warn');
+                addSystemMessage('No connected peers');
             }
         }
         
-        addMessage(sender, text, isSelf) {
-            const msgDiv = document.createElement('div');
-            msgDiv.className = `message ${isSelf ? 'self' : ''}`;
-            msgDiv.innerHTML = `
-                <div class="message-bubble">
-                    <div class="message-sender">${this.escapeHtml(sender)}</div>
-                    <div class="message-text">${this.escapeHtml(text)}</div>
-                </div>
-            `;
-            
-            if (this.messagesDiv.children.length === 1 && this.messagesDiv.children[0].innerText.includes('Send a message')) {
-                this.messagesDiv.innerHTML = '';
-            }
-            
-            this.messagesDiv.appendChild(msgDiv);
-            this.messagesDiv.scrollTop = this.messagesDiv.scrollHeight;
-        }
-        
-        addSystemMessage(text) {
-            const sysDiv = document.createElement('div');
-            sysDiv.className = 'system-message';
-            sysDiv.innerHTML = `<span>${this.escapeHtml(text)}</span>`;
-            this.messagesDiv.appendChild(sysDiv);
-            this.messagesDiv.scrollTop = this.messagesDiv.scrollHeight;
-        }
-        
-        renderPeers() {
-            const peersArray = Array.from(this.peers.entries());
-            const connectedCount = Array.from(this.peers.values()).filter(p => p.status === 'connected').length;
-            this.peerCountSpan.textContent = `${connectedCount}/${peersArray.length} connected`;
-            
-            if (peersArray.length === 0) {
-                this.peerListDiv.innerHTML = '<div style="text-align: center; padding: 20px;">No peers</div>';
-                return;
-            }
-            
-            this.peerListDiv.innerHTML = peersArray.map(([id, peer]) => `
-                <div class="peer-item ${peer.status}">
-                    <div class="peer-name">${this.escapeHtml(peer.name)}</div>
-                    <div class="peer-status ${peer.status}">
-                        ${peer.status === 'connected' ? '● Connected' : '○ Connecting...'}
-                    </div>
-                </div>
-            `).join('');
-        }
-        
-        updateName() {
-            const newName = this.nameInput.value.trim();
-            if (newName && newName !== this.localPeerName) {
-                this.localPeerName = newName;
-                localStorage.setItem('peerName', this.localPeerName);
-                this.addSystemMessage(`Name changed to ${this.localPeerName}`);
+        function updateName() {
+            const newName = elements.nameInput.value.trim();
+            if (newName && newName !== localPeerName) {
+                localPeerName = newName;
+                localStorage.setItem('peerName', localPeerName);
+                addSystemMessage(`Name changed to ${localPeerName}`);
+                log(`Name changed to ${localPeerName}`);
                 
-                if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-                    this.ws.send(JSON.stringify({
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
                         type: 'register',
-                        peerId: this.localPeerId,
-                        peerName: this.localPeerName
+                        peerId: localPeerId,
+                        peerName: localPeerName
                     }));
                 }
             }
         }
         
-        setStatus(text) {
-            this.connectionStatus.textContent = text;
-            this.connectionStatus.className = `connection-status ${text === 'Connected' ? 'connected' : ''}`;
+        function retryConnections() {
+            log('🔄 Retrying all connections...');
+            for (const [peerId, peer] of peers) {
+                if (peer.status !== 'connected') {
+                    initiateConnection(peerId, peer.name);
+                }
+            }
         }
         
-        escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-    }
-    
-    new WebRTCDebugClient();
+        // Event listeners
+        elements.connectBtn.onclick = connect;
+        elements.sendBtn.onclick = sendMessage;
+        elements.updateNameBtn.onclick = updateName;
+        elements.retryBtn.onclick = retryConnections;
+        elements.messageInput.onkeypress = (e) => {
+            if (e.key === 'Enter') sendMessage();
+        };
+        
+        log('App ready - Enter your Render.com WebSocket URL and click Connect');
+        log('Example: wss://your-app.onrender.com');
+    })();
 </script>
 </body>
 </html>
