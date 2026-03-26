@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LAN Party Chat · Simple & Reliable</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>LAN Party Chat · Cross-Device</title>
     <style>
         * {
             margin: 0;
@@ -15,17 +15,17 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            padding: 20px;
+            padding: 12px;
         }
 
         .app {
-            max-width: 1400px;
+            max-width: 1200px;
             margin: 0 auto;
             background: white;
             border-radius: 20px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
             overflow: hidden;
-            height: 90vh;
+            height: 95vh;
             display: flex;
             flex-direction: column;
         }
@@ -33,29 +33,29 @@
         .header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 20px 30px;
+            padding: 15px 20px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
-            gap: 15px;
+            gap: 10px;
         }
 
         .title h1 {
-            font-size: 1.5rem;
-            margin-bottom: 5px;
+            font-size: 1.3rem;
+            margin-bottom: 3px;
         }
 
         .title p {
-            font-size: 0.85rem;
+            font-size: 0.7rem;
             opacity: 0.9;
         }
 
         .connection-status {
             background: rgba(255,255,255,0.2);
-            padding: 8px 16px;
+            padding: 6px 12px;
             border-radius: 20px;
-            font-size: 0.85rem;
+            font-size: 0.75rem;
             font-weight: 500;
         }
 
@@ -68,6 +68,13 @@
             display: flex;
             flex: 1;
             overflow: hidden;
+            flex-direction: row;
+        }
+
+        @media (max-width: 768px) {
+            .main {
+                flex-direction: column;
+            }
         }
 
         .sidebar {
@@ -78,8 +85,17 @@
             flex-direction: column;
         }
 
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 100%;
+                border-right: none;
+                border-bottom: 1px solid #e5e7eb;
+                max-height: 200px;
+            }
+        }
+
         .sidebar-header {
-            padding: 20px;
+            padding: 15px;
             background: white;
             border-bottom: 1px solid #e5e7eb;
         }
@@ -87,13 +103,13 @@
         .peer-list {
             flex: 1;
             overflow-y: auto;
-            padding: 15px;
+            padding: 10px;
         }
 
         .peer-item {
             background: white;
-            padding: 12px;
-            margin-bottom: 10px;
+            padding: 10px;
+            margin-bottom: 8px;
             border-radius: 10px;
             border: 1px solid #e5e7eb;
             transition: all 0.2s;
@@ -110,7 +126,8 @@
 
         .peer-name {
             font-weight: 600;
-            margin-bottom: 5px;
+            font-size: 0.9rem;
+            margin-bottom: 4px;
         }
 
         .peer-status {
@@ -132,20 +149,24 @@
         }
 
         .chat-header {
-            padding: 20px;
+            padding: 15px;
             background: white;
             border-bottom: 1px solid #e5e7eb;
+        }
+
+        .chat-header h2 {
+            font-size: 1.1rem;
         }
 
         .messages {
             flex: 1;
             overflow-y: auto;
-            padding: 20px;
+            padding: 15px;
             background: #f9fafb;
         }
 
         .message {
-            margin-bottom: 15px;
+            margin-bottom: 12px;
             display: flex;
         }
 
@@ -154,8 +175,8 @@
         }
 
         .message-bubble {
-            max-width: 70%;
-            padding: 10px 15px;
+            max-width: 80%;
+            padding: 8px 12px;
             border-radius: 15px;
             background: white;
             box-shadow: 0 1px 2px rgba(0,0,0,0.1);
@@ -167,9 +188,9 @@
         }
 
         .message-sender {
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             font-weight: 600;
-            margin-bottom: 5px;
+            margin-bottom: 4px;
             color: #6b7280;
         }
 
@@ -179,38 +200,39 @@
 
         .message-text {
             word-wrap: break-word;
+            font-size: 0.9rem;
         }
 
         .message-time {
-            font-size: 0.65rem;
-            margin-top: 5px;
+            font-size: 0.6rem;
+            margin-top: 4px;
             opacity: 0.7;
         }
 
         .system-message {
             text-align: center;
-            margin: 10px 0;
+            margin: 8px 0;
         }
 
         .system-message span {
             background: #e5e7eb;
-            padding: 4px 12px;
+            padding: 3px 10px;
             border-radius: 20px;
-            font-size: 0.7rem;
+            font-size: 0.65rem;
             color: #6b7280;
         }
 
         .input-area {
-            padding: 20px;
+            padding: 12px;
             background: white;
             border-top: 1px solid #e5e7eb;
             display: flex;
-            gap: 10px;
+            gap: 8px;
         }
 
         .input-area input {
             flex: 1;
-            padding: 12px;
+            padding: 10px;
             border: 1px solid #e5e7eb;
             border-radius: 10px;
             font-size: 0.9rem;
@@ -222,7 +244,7 @@
         }
 
         .input-area button {
-            padding: 12px 24px;
+            padding: 10px 20px;
             background: #667eea;
             color: white;
             border: none;
@@ -231,40 +253,59 @@
             font-weight: 600;
         }
 
-        .input-area button:hover:not(:disabled) {
-            background: #5a67d8;
+        .input-area button:active {
+            transform: scale(0.98);
         }
 
         .settings-panel {
-            padding: 15px 20px;
+            padding: 10px 15px;
             background: #f3f4f6;
             border-top: 1px solid #e5e7eb;
             display: flex;
-            gap: 10px;
+            gap: 8px;
             align-items: center;
             flex-wrap: wrap;
+            font-size: 0.8rem;
         }
 
         .settings-panel input {
-            flex: 1;
-            padding: 8px;
+            padding: 6px 8px;
             border: 1px solid #d1d5db;
-            border-radius: 8px;
-            font-size: 0.85rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
         }
 
         .settings-panel button {
-            padding: 8px 16px;
+            padding: 6px 12px;
             background: #6b7280;
             color: white;
             border: none;
-            border-radius: 8px;
+            border-radius: 6px;
             cursor: pointer;
+            font-size: 0.75rem;
+        }
+
+        .settings-panel button:active {
+            transform: scale(0.98);
+        }
+
+        .debug-panel {
+            font-size: 0.65rem;
+            padding: 5px 10px;
+            background: #1e1e2e;
+            color: #a0a0c0;
+            font-family: monospace;
+            border-top: 1px solid #333;
+            max-height: 60px;
+            overflow-y: auto;
         }
 
         @media (max-width: 768px) {
-            .sidebar {
-                width: 240px;
+            .settings-panel {
+                font-size: 0.7rem;
+            }
+            .settings-panel input {
+                min-width: 100px;
             }
         }
     </style>
@@ -274,7 +315,7 @@
     <div class="header">
         <div class="title">
             <h1>🎉 LAN Party Chat</h1>
-            <p>Simple WebRTC Broadcast</p>
+            <p>Cross-Device WebRTC Broadcast</p>
         </div>
         <div class="connection-status" id="connectionStatus">
             ⚫ Disconnected
@@ -285,7 +326,7 @@
         <div class="sidebar">
             <div class="sidebar-header">
                 <h3>👥 Connected Peers</h3>
-                <div id="peerCount" style="font-size: 0.85rem; color: #6b7280;">0 online</div>
+                <div id="peerCount" style="font-size: 0.75rem; color: #6b7280;">0 online</div>
             </div>
             <div class="peer-list" id="peerList">
                 <div style="text-align: center; padding: 20px; color: #9ca3af;">Connect to see peers</div>
@@ -295,7 +336,7 @@
         <div class="chat-area">
             <div class="chat-header">
                 <h2>💬 Group Broadcast</h2>
-                <p style="font-size: 0.85rem; color: #6b7280;">Messages are sent to all connected peers</p>
+                <p style="font-size: 0.7rem; color: #6b7280;">Messages are sent to all connected peers</p>
             </div>
             <div class="messages" id="messages">
                 <div style="text-align: center; color: #9ca3af; padding: 40px;">✨ Send a message</div>
@@ -306,24 +347,29 @@
             </div>
             <div class="settings-panel">
                 <label>Your name:</label>
-                <input type="text" id="nameInput" style="width: 120px;">
+                <input type="text" id="nameInput" style="width: 100px;">
                 <button id="updateNameBtn">Update</button>
                 <label>Server:</label>
-                <input type="text" id="serverUrl" placeholder="wss://your-server.onrender.com" style="flex: 2;">
+                <input type="text" id="serverUrl" placeholder="ws://192.168.x.x:3000" style="min-width: 180px;">
                 <button id="connectBtn">Connect</button>
+                <button id="copyIpBtn" style="background:#10b981;">📱 Get IP</button>
+            </div>
+            <div class="debug-panel" id="debugPanel">
+                💡 Ready to connect
             </div>
         </div>
     </div>
 </div>
 
 <script>
-    class SimpleWebRTCClient {
+    class CrossDeviceWebRTC {
         constructor() {
             this.ws = null;
             this.localPeerId = null;
             this.localPeerName = localStorage.getItem('peerName') || this.getRandomName();
             this.peers = new Map();
-            this.connections = new Map(); // peerId -> { pc, dc }
+            this.connections = new Map();
+            this.debugMessages = [];
             
             // DOM elements
             this.peerListDiv = document.getElementById('peerList');
@@ -336,21 +382,60 @@
             this.connectBtn = document.getElementById('connectBtn');
             this.connectionStatus = document.getElementById('connectionStatus');
             this.peerCountSpan = document.getElementById('peerCount');
+            this.debugPanel = document.getElementById('debugPanel');
+            this.copyIpBtn = document.getElementById('copyIpBtn');
             
             // Initialize
             this.nameInput.value = this.localPeerName;
-            this.serverUrlInput.value = localStorage.getItem('serverUrl') || '';
+            
+            // Try to get local IP automatically
+            this.getLocalIP();
             
             this.bindEvents();
             
-            if (this.serverUrlInput.value) {
-                setTimeout(() => this.connect(), 500);
+            // Auto-connect if URL exists
+            const savedUrl = localStorage.getItem('serverUrl');
+            if (savedUrl) {
+                this.serverUrlInput.value = savedUrl;
+                setTimeout(() => this.connect(), 1000);
             }
         }
         
+        getLocalIP() {
+            // Create a simple RTCPeerConnection to get local IP
+            const pc = new RTCPeerConnection({ iceServers: [] });
+            pc.createDataChannel('ip');
+            pc.createOffer().then(offer => pc.setLocalDescription(offer));
+            pc.onicecandidate = (e) => {
+                if (e.candidate) {
+                    const ipMatch = e.candidate.candidate.match(/([0-9]{1,3}\.){3}[0-9]{1,3}/);
+                    if (ipMatch && !ipMatch[0].startsWith('192.168.') && !ipMatch[0].startsWith('10.')) {
+                        // Skip public IPs
+                        return;
+                    }
+                    if (ipMatch && ipMatch[0] !== '0.0.0.0' && ipMatch[0] !== '127.0.0.1') {
+                        this.debug(`🌐 Local IP detected: ${ipMatch[0]}`);
+                        // Don't auto-fill, just show for reference
+                        this.debug(`💡 Use ws://${ipMatch[0]}:3000 for phone connection`);
+                    }
+                    pc.close();
+                }
+            };
+            setTimeout(() => pc.close(), 1000);
+        }
+        
         getRandomName() {
-            const names = ['Alice', 'Bob', 'Charlie', 'David', 'Emma', 'Frank', 'Grace', 'Henry'];
-            return names[Math.floor(Math.random() * names.length)];
+            const names = ['PhoneUser', 'LaptopUser', 'TabletUser', 'DesktopUser', 'MobileUser'];
+            const randomName = names[Math.floor(Math.random() * names.length)];
+            return `${randomName}${Math.floor(Math.random() * 100)}`;
+        }
+        
+        debug(msg) {
+            const timestamp = new Date().toLocaleTimeString();
+            this.debugMessages.unshift(`[${timestamp}] ${msg}`);
+            if (this.debugMessages.length > 5) this.debugMessages.pop();
+            this.debugPanel.innerHTML = this.debugMessages.map(m => `💬 ${m}`).join('<br>');
+            console.log(msg);
         }
         
         bindEvents() {
@@ -358,30 +443,55 @@
             this.messageInput.onkeypress = (e) => { if (e.key === 'Enter') this.sendMessage(); };
             this.updateNameBtn.onclick = () => this.updateName();
             this.connectBtn.onclick = () => this.connect();
+            this.copyIpBtn.onclick = () => this.showConnectionGuide();
+        }
+        
+        showConnectionGuide() {
+            const currentUrl = window.location.hostname;
+            const port = window.location.port || '3000';
+            let message = `📱 PHONE CONNECTION GUIDE:\n\n`;
+            message += `1. Make sure phone and computer are on same Wi-Fi\n`;
+            message += `2. On computer, find your local IP (run 'ipconfig' or 'ifconfig')\n`;
+            message += `3. On phone, enter: ws://YOUR_COMPUTER_IP:${port}\n`;
+            message += `4. Example: ws://192.168.1.100:${port}\n\n`;
+            message += `Current page URL: ${window.location.href}`;
+            alert(message);
         }
         
         connect() {
-            const url = this.serverUrlInput.value.trim();
+            let url = this.serverUrlInput.value.trim();
             if (!url) {
-                alert('Please enter server URL');
+                alert('Please enter server URL (e.g., ws://192.168.1.100:3000)');
                 return;
+            }
+            
+            // Ensure WebSocket protocol
+            if (!url.startsWith('ws://') && !url.startsWith('wss://')) {
+                url = 'ws://' + url;
             }
             
             localStorage.setItem('serverUrl', url);
             this.setStatus('Connecting...', 'connecting');
+            this.debug(`Connecting to ${url}`);
             
             if (this.ws) this.ws.close();
             
-            this.ws = new WebSocket(url);
-            this.ws.onopen = () => this.onOpen();
-            this.ws.onmessage = (e) => this.onMessage(e);
-            this.ws.onerror = () => this.setStatus('Error', 'error');
-            this.ws.onclose = () => this.onClose();
+            try {
+                this.ws = new WebSocket(url);
+                this.ws.onopen = () => this.onOpen();
+                this.ws.onmessage = (e) => this.onMessage(e);
+                this.ws.onerror = (e) => this.debug(`WebSocket error: ${e}`);
+                this.ws.onclose = () => this.onClose();
+            } catch (err) {
+                this.debug(`Connection failed: ${err.message}`);
+                this.setStatus('Connection failed', 'error');
+            }
         }
         
         onOpen() {
             this.setStatus('Connected', 'connected');
             this.localPeerId = 'peer_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+            this.debug(`Registered as ${this.localPeerName} (${this.localPeerId})`);
             
             this.ws.send(JSON.stringify({
                 type: 'register',
@@ -398,10 +508,12 @@
             
             switch(data.type) {
                 case 'peer_list':
+                    this.debug(`Received peer list: ${data.peers.length} peers`);
                     data.peers.forEach(peer => {
                         if (!this.peers.has(peer.peerId)) {
                             this.addPeer(peer.peerId, peer.peerName);
-                            setTimeout(() => this.connectToPeer(peer.peerId, peer.peerName), 1000);
+                            // Delay connection to avoid race conditions
+                            setTimeout(() => this.connectToPeer(peer.peerId, peer.peerName), 500);
                         }
                     });
                     this.renderPeers();
@@ -409,25 +521,29 @@
                     
                 case 'peer_joined':
                     if (data.peerId !== this.localPeerId && !this.peers.has(data.peerId)) {
+                        this.debug(`New peer joined: ${data.peerName}`);
                         this.addPeer(data.peerId, data.peerName);
                         this.addSystemMessage(`${data.peerName} joined`);
-                        setTimeout(() => this.connectToPeer(data.peerId, data.peerName), 1000);
+                        setTimeout(() => this.connectToPeer(data.peerId, data.peerName), 500);
                     }
                     break;
                     
                 case 'peer_left':
                     if (this.peers.has(data.peerId)) {
                         const peer = this.peers.get(data.peerId);
+                        this.debug(`Peer left: ${peer.name}`);
                         this.addSystemMessage(`${peer.name} left`);
                         this.removePeer(data.peerId);
                     }
                     break;
                     
                 case 'webrtc_offer':
+                    this.debug(`Received offer from ${data.fromName}`);
                     this.handleOffer(data.fromId, data.fromName, data.sdp);
                     break;
                     
                 case 'webrtc_answer':
+                    this.debug(`Received answer from ${data.fromId}`);
                     this.handleAnswer(data.fromId, data.sdp);
                     break;
                     
@@ -439,6 +555,7 @@
         
         onClose() {
             this.setStatus('Disconnected', 'error');
+            this.debug('WebSocket disconnected');
             this.messageInput.disabled = true;
             this.sendBtn.disabled = true;
             
@@ -450,7 +567,13 @@
             this.peers.clear();
             this.renderPeers();
             
-            setTimeout(() => this.connect(), 3000);
+            // Auto-reconnect after 5 seconds
+            setTimeout(() => {
+                if (!this.ws || this.ws.readyState === WebSocket.CLOSED) {
+                    this.debug('Attempting to reconnect...');
+                    this.connect();
+                }
+            }, 5000);
         }
         
         addPeer(peerId, name) {
@@ -467,19 +590,26 @@
         }
         
         async connectToPeer(peerId, peerName) {
-            if (this.connections.has(peerId)) return;
+            if (this.connections.has(peerId)) {
+                this.debug(`Already connecting to ${peerName}`);
+                return;
+            }
+            
+            this.debug(`Initiating connection to ${peerName}...`);
             
             try {
                 const pc = new RTCPeerConnection({
-                    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' }
+                    ]
                 });
                 
                 const dc = pc.createDataChannel('chat');
-                
                 this.connections.set(peerId, { pc, dc });
                 
                 dc.onopen = () => {
-                    console.log(`Connected to ${peerName}`);
+                    this.debug(`✅ Connected to ${peerName}`);
                     if (this.peers.has(peerId)) {
                         this.peers.get(peerId).status = 'connected';
                         this.renderPeers();
@@ -488,7 +618,7 @@
                 };
                 
                 dc.onclose = () => {
-                    console.log(`Disconnected from ${peerName}`);
+                    this.debug(`Disconnected from ${peerName}`);
                     if (this.peers.has(peerId)) {
                         this.peers.get(peerId).status = 'disconnected';
                         this.renderPeers();
@@ -512,6 +642,16 @@
                     }
                 };
                 
+                pc.oniceconnectionstatechange = () => {
+                    this.debug(`ICE state with ${peerName}: ${pc.iceConnectionState}`);
+                    if (pc.iceConnectionState === 'connected') {
+                        this.debug(`🎉 ICE connected to ${peerName}`);
+                    } else if (pc.iceConnectionState === 'failed') {
+                        this.debug(`❌ ICE failed with ${peerName}`);
+                        this.removePeer(peerId);
+                    }
+                };
+                
                 const offer = await pc.createOffer();
                 await pc.setLocalDescription(offer);
                 
@@ -522,16 +662,21 @@
                 }));
                 
             } catch (err) {
-                console.error('Connection error:', err);
+                this.debug(`Connection error: ${err.message}`);
             }
         }
         
         async handleOffer(fromId, fromName, sdp) {
             if (this.connections.has(fromId)) return;
             
+            this.debug(`Handling offer from ${fromName}...`);
+            
             try {
                 const pc = new RTCPeerConnection({
-                    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' }
+                    ]
                 });
                 
                 let dc = null;
@@ -541,6 +686,7 @@
                     this.connections.set(fromId, { pc, dc });
                     
                     dc.onopen = () => {
+                        this.debug(`✅ Connected to ${fromName}`);
                         if (this.peers.has(fromId)) {
                             this.peers.get(fromId).status = 'connected';
                             this.renderPeers();
@@ -577,7 +723,7 @@
                 }));
                 
             } catch (err) {
-                console.error('Offer handling error:', err);
+                this.debug(`Offer handling error: ${err.message}`);
             }
         }
         
@@ -585,6 +731,7 @@
             const conn = this.connections.get(fromId);
             if (conn && conn.pc && !conn.pc.remoteDescription) {
                 await conn.pc.setRemoteDescription(new RTCSessionDescription(sdp));
+                this.debug(`Set remote description for ${fromId}`);
             }
         }
         
@@ -618,8 +765,10 @@
             if (sent > 0) {
                 this.addMessage(this.localPeerName, text, true);
                 this.messageInput.value = '';
+                this.debug(`Broadcast sent to ${sent} peer(s)`);
             } else {
                 this.addSystemMessage('No connected peers');
+                this.debug('No peers available to send message');
             }
         }
         
@@ -679,6 +828,7 @@
                 this.localPeerName = newName;
                 localStorage.setItem('peerName', this.localPeerName);
                 this.addSystemMessage(`You are now known as ${this.localPeerName}`);
+                this.debug(`Name changed to ${this.localPeerName}`);
                 
                 // Re-register
                 if (this.ws && this.ws.readyState === WebSocket.OPEN) {
@@ -703,7 +853,8 @@
         }
     }
     
-    new SimpleWebRTCClient();
+    // Initialize the app
+    const app = new CrossDeviceWebRTC();
 </script>
 </body>
 </html>
