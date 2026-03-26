@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>LAN Party Chat · WebRTC Debug</title>
+    <title>LAN Party Chat · Fixed WebRTC</title>
     <style>
         * {
             margin: 0;
@@ -221,10 +221,6 @@
             font-weight: 600;
         }
 
-        .input-area button:active {
-            transform: scale(0.98);
-        }
-
         .settings-panel {
             padding: 10px 15px;
             background: #f3f4f6;
@@ -252,10 +248,6 @@
             cursor: pointer;
         }
 
-        .settings-panel button:active {
-            transform: scale(0.98);
-        }
-
         .debug-panel {
             font-size: 0.65rem;
             padding: 8px;
@@ -279,7 +271,7 @@
 <div class="app">
     <div class="header">
         <div class="title">
-            <h1>🎉 LAN Party Chat</h1>
+            <h1>🎉 LAN Party Chat · Fixed</h1>
         </div>
         <div class="connection-status" id="connectionStatus">
             ⚫ Disconnected
@@ -307,16 +299,15 @@
             </div>
             <div class="settings-panel">
                 <label>Name:</label>
-                <input type="text" id="nameInput" style="width: 100px;" value="User">
+                <input type="text" id="nameInput" style="width: 100px;">
                 <button id="updateNameBtn">Update</button>
                 <label>Server:</label>
                 <input type="text" id="serverUrl" placeholder="wss://your-server.onrender.com" style="min-width: 200px;">
                 <button id="connectBtn">Connect</button>
-                <button id="retryBtn" style="background:#f59e0b;">Retry</button>
+                <button id="resetBtn" style="background:#ef4444;">Reset</button>
             </div>
             <div class="debug-panel" id="debugPanel">
-                💡 Ready to connect<br>
-                Enter your Render.com WebSocket URL and click Connect
+                💡 Ready to connect
             </div>
         </div>
     </div>
@@ -333,21 +324,12 @@
             nameInput: document.getElementById('nameInput'),
             serverUrlInput: document.getElementById('serverUrl'),
             connectBtn: document.getElementById('connectBtn'),
-            retryBtn: document.getElementById('retryBtn'),
+            resetBtn: document.getElementById('resetBtn'),
             updateNameBtn: document.getElementById('updateNameBtn'),
             connectionStatus: document.getElementById('connectionStatus'),
             peerCountSpan: document.getElementById('peerCount'),
             debugPanel: document.getElementById('debugPanel')
         };
-        
-        // Check all elements exist
-        for (const [key, el] of Object.entries(elements)) {
-            if (!el) {
-                console.error(`Element ${key} not found!`);
-                alert(`Error: Element ${key} not found. Please check HTML.`);
-                return;
-            }
-        }
         
         // State
         let ws = null;
@@ -356,6 +338,7 @@
         let peers = new Map();
         let connections = new Map();
         let logs = [];
+        let isNegotiating = false;
         
         // Initialize
         elements.nameInput.value = localPeerName;
@@ -365,7 +348,6 @@
             elements.serverUrlInput.value = savedUrl;
         }
         
-        // Helper functions
         function log(msg, type = 'info') {
             const timestamp = new Date().toLocaleTimeString();
             logs.unshift(`[${timestamp}] ${msg}`);
@@ -390,6 +372,10 @@
         }
         
         function addSystemMessage(text) {
+            if (elements.messagesDiv.children.length === 1 && 
+                elements.messagesDiv.children[0].innerText.includes('Send a message')) {
+                elements.messagesDiv.innerHTML = '';
+            }
             const sysDiv = document.createElement('div');
             sysDiv.className = 'system-message';
             sysDiv.innerHTML = `<span>${escapeHtml(text)}</span>`;
@@ -398,7 +384,6 @@
         }
         
         function addMessage(sender, text, isSelf) {
-            // Remove placeholder if exists
             if (elements.messagesDiv.children.length === 1 && 
                 elements.messagesDiv.children[0].innerText.includes('Send a message')) {
                 elements.messagesDiv.innerHTML = '';
@@ -436,28 +421,34 @@
             `).join('');
         }
         
-        function removePeer(peerId) {
+        function cleanupPeer(peerId) {
             const conn = connections.get(peerId);
-            if (conn && conn.pc) {
-                try { conn.pc.close(); } catch(e) {}
+            if (conn) {
+                if (conn.pc) {
+                    try { conn.pc.close(); } catch(e) {}
+                }
+                connections.delete(peerId);
             }
-            connections.delete(peerId);
-            peers.delete(peerId);
-            renderPeers();
+            if (peers.has(peerId)) {
+                peers.delete(peerId);
+                renderPeers();
+            }
         }
         
-        function addPeer(peerId, name) {
-            peers.set(peerId, { name, status: 'connecting' });
-            renderPeers();
-        }
-        
-        // WebRTC Functions
+        // WebRTC Functions with fixed negotiation
         async function initiateConnection(peerId, peerName) {
-            if (connections.has(peerId)) {
-                log(`Already connecting to ${peerName}`);
+            // Prevent multiple simultaneous negotiations
+            if (isNegotiating) {
+                log(`Already negotiating, skipping ${peerName}`);
                 return;
             }
             
+            if (connections.has(peerId)) {
+                log(`Already connected to ${peerName}`);
+                return;
+            }
+            
+            isNegotiating = true;
             log(`🔌 Initiating connection to ${peerName}...`);
             
             try {
@@ -469,8 +460,9 @@
                     ]
                 });
                 
+                // Only the offerer creates a data channel
                 const dc = pc.createDataChannel('chat');
-                connections.set(peerId, { pc, dc, name: peerName });
+                connections.set(peerId, { pc, dc, name: peerName, role: 'initiator' });
                 
                 dc.onopen = () => {
                     log(`✅ Data channel OPEN with ${peerName}`);
@@ -495,14 +487,11 @@
                         if (msg.type === 'chat') {
                             addMessage(msg.sender, msg.text, msg.senderId === localPeerId);
                         }
-                    } catch (err) {
-                        log(`Message error: ${err.message}`);
-                    }
+                    } catch (err) {}
                 };
                 
                 pc.onicecandidate = (e) => {
                     if (e.candidate && ws && ws.readyState === WebSocket.OPEN) {
-                        log(`📡 ICE candidate sent to ${peerName}`);
                         ws.send(JSON.stringify({
                             type: 'webrtc_ice_candidate',
                             targetId: peerId,
@@ -515,15 +504,17 @@
                     log(`ICE state with ${peerName}: ${pc.iceConnectionState}`);
                     if (pc.iceConnectionState === 'connected') {
                         log(`🎉 ICE CONNECTED to ${peerName}!`);
+                        isNegotiating = false;
                     } else if (pc.iceConnectionState === 'failed') {
                         log(`❌ ICE FAILED with ${peerName}`, 'error');
-                        log(`   Check: Both devices on same network? Firewall?`, 'warn');
+                        log(`   Tip: Make sure both devices are on the same network`, 'warn');
+                        cleanupPeer(peerId);
+                        isNegotiating = false;
                     }
                 };
                 
                 const offer = await pc.createOffer();
                 await pc.setLocalDescription(offer);
-                log(`📤 Sending offer to ${peerName}`);
                 
                 if (ws && ws.readyState === WebSocket.OPEN) {
                     ws.send(JSON.stringify({
@@ -531,6 +522,7 @@
                         targetId: peerId,
                         sdp: pc.localDescription
                     }));
+                    log(`📤 Offer sent to ${peerName}`);
                 }
                 
                 // Timeout
@@ -538,17 +530,20 @@
                     const conn = connections.get(peerId);
                     if (conn && conn.dc.readyState !== 'open') {
                         log(`⏰ Connection timeout for ${peerName}`, 'warn');
-                        removePeer(peerId);
+                        cleanupPeer(peerId);
+                        isNegotiating = false;
                     }
-                }, 30000);
+                }, 20000);
                 
             } catch (err) {
                 log(`Connection error: ${err.message}`, 'error');
-                removePeer(peerId);
+                cleanupPeer(peerId);
+                isNegotiating = false;
             }
         }
         
         async function handleOffer(fromId, fromName, sdp) {
+            // If we're already negotiating or connected, ignore
             if (connections.has(fromId)) {
                 log(`Already have connection to ${fromName}, ignoring offer`);
                 return;
@@ -569,7 +564,7 @@
                 pc.ondatachannel = (e) => {
                     dc = e.channel;
                     log(`📡 Data channel received from ${fromName}`);
-                    connections.set(fromId, { pc, dc, name: fromName });
+                    connections.set(fromId, { pc, dc, name: fromName, role: 'receiver' });
                     
                     dc.onopen = () => {
                         log(`✅ Data channel OPEN with ${fromName}`);
@@ -602,6 +597,12 @@
                 
                 pc.oniceconnectionstatechange = () => {
                     log(`ICE state with ${fromName}: ${pc.iceConnectionState}`);
+                    if (pc.iceConnectionState === 'connected') {
+                        log(`🎉 ICE CONNECTED to ${fromName}!`);
+                    } else if (pc.iceConnectionState === 'failed') {
+                        log(`❌ ICE FAILED with ${fromName}`, 'error');
+                        cleanupPeer(fromId);
+                    }
                 };
                 
                 await pc.setRemoteDescription(new RTCSessionDescription(sdp));
@@ -614,18 +615,18 @@
                         targetId: fromId,
                         sdp: pc.localDescription
                     }));
+                    log(`📤 Answer sent to ${fromName}`);
                 }
-                
-                log(`📤 Sent answer to ${fromName}`);
                 
             } catch (err) {
                 log(`Offer handling error: ${err.message}`, 'error');
+                cleanupPeer(fromId);
             }
         }
         
         async function handleAnswer(fromId, sdp) {
             const conn = connections.get(fromId);
-            if (conn && conn.pc && !conn.pc.remoteDescription) {
+            if (conn && conn.pc && conn.role === 'initiator' && !conn.pc.remoteDescription) {
                 try {
                     await conn.pc.setRemoteDescription(new RTCSessionDescription(sdp));
                     log(`✅ Remote description set for ${conn.name}`);
@@ -640,9 +641,8 @@
             if (conn && conn.pc && conn.pc.remoteDescription) {
                 try {
                     await conn.pc.addIceCandidate(new RTCIceCandidate(candidate));
-                    log(`❄️ ICE candidate added for ${conn.name}`);
                 } catch (err) {
-                    log(`ICE candidate error: ${err.message}`, 'error');
+                    // Ignore candidate errors
                 }
             }
         }
@@ -675,6 +675,27 @@
             }
         }
         
+        function reset() {
+            log('🔄 Resetting all connections...');
+            // Close all peer connections
+            for (const [id, conn] of connections) {
+                try { conn.pc.close(); } catch(e) {}
+            }
+            connections.clear();
+            peers.clear();
+            isNegotiating = false;
+            renderPeers();
+            
+            // Re-register with server
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'register',
+                    peerId: localPeerId,
+                    peerName: localPeerName
+                }));
+            }
+        }
+        
         function onOpen() {
             log('WebSocket connected');
             setStatus('Connected', true);
@@ -695,15 +716,20 @@
         function onMessage(event) {
             try {
                 const data = JSON.parse(event.data);
-                log(`Received: ${data.type}`);
                 
                 switch(data.type) {
                     case 'peer_list':
                         log(`Peer list: ${data.peers.length} peers`);
+                        // Only connect to peers with higher ID to avoid double connections
                         data.peers.forEach(peer => {
                             if (!peers.has(peer.peerId)) {
                                 addPeer(peer.peerId, peer.peerName);
-                                setTimeout(() => initiateConnection(peer.peerId, peer.peerName), 1000);
+                                // Only the peer with the "higher" ID initiates to avoid race
+                                if (localPeerId > peer.peerId) {
+                                    setTimeout(() => initiateConnection(peer.peerId, peer.peerName), 1000);
+                                } else {
+                                    log(`Waiting for ${peer.peerName} to initiate connection`);
+                                }
                             }
                         });
                         break;
@@ -713,7 +739,12 @@
                             log(`New peer joined: ${data.peerName}`);
                             addPeer(data.peerId, data.peerName);
                             addSystemMessage(`${data.peerName} joined`);
-                            setTimeout(() => initiateConnection(data.peerId, data.peerName), 1000);
+                            // Only initiate if our ID is higher
+                            if (localPeerId > data.peerId) {
+                                setTimeout(() => initiateConnection(data.peerId, data.peerName), 1000);
+                            } else {
+                                log(`Waiting for ${data.peerName} to initiate connection`);
+                            }
                         }
                         break;
                         
@@ -722,17 +753,15 @@
                             const peer = peers.get(data.peerId);
                             log(`Peer left: ${peer.name}`);
                             addSystemMessage(`${peer.name} left`);
-                            removePeer(data.peerId);
+                            cleanupPeer(data.peerId);
                         }
                         break;
                         
                     case 'webrtc_offer':
-                        log(`📨 Offer from ${data.fromName}`);
                         handleOffer(data.fromId, data.fromName, data.sdp);
                         break;
                         
                     case 'webrtc_answer':
-                        log(`📨 Answer from ${data.fromId}`);
                         handleAnswer(data.fromId, data.sdp);
                         break;
                         
@@ -745,19 +774,25 @@
             }
         }
         
+        function addPeer(peerId, name) {
+            peers.set(peerId, { name, status: 'connecting' });
+            renderPeers();
+        }
+        
         function onClose() {
             log('WebSocket disconnected', 'warn');
             setStatus('Disconnected');
             elements.messageInput.disabled = true;
             elements.sendBtn.disabled = true;
             
-            // Clean up connections
+            // Clean up all connections
             for (const [id, conn] of connections) {
                 try { conn.pc.close(); } catch(e) {}
             }
             connections.clear();
             peers.clear();
             renderPeers();
+            isNegotiating = false;
             
             // Auto reconnect
             setTimeout(() => {
@@ -792,7 +827,7 @@
                 elements.messageInput.value = '';
                 log(`📤 Message sent to ${sent} peer(s)`);
             } else {
-                log(`❌ No connected peers to send to`, 'warn');
+                log(`❌ No connected peers`, 'warn');
                 addSystemMessage('No connected peers');
             }
         }
@@ -815,26 +850,17 @@
             }
         }
         
-        function retryConnections() {
-            log('🔄 Retrying all connections...');
-            for (const [peerId, peer] of peers) {
-                if (peer.status !== 'connected') {
-                    initiateConnection(peerId, peer.name);
-                }
-            }
-        }
-        
         // Event listeners
         elements.connectBtn.onclick = connect;
         elements.sendBtn.onclick = sendMessage;
         elements.updateNameBtn.onclick = updateName;
-        elements.retryBtn.onclick = retryConnections;
+        elements.resetBtn.onclick = reset;
         elements.messageInput.onkeypress = (e) => {
             if (e.key === 'Enter') sendMessage();
         };
         
-        log('App ready - Enter your Render.com WebSocket URL and click Connect');
-        log('Example: wss://your-app.onrender.com');
+        log('App ready - Fixed WebRTC connection handling');
+        log('Enter your Render.com WebSocket URL and click Connect');
     })();
 </script>
 </body>
