@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LAN Party Chat · Global Broadcast</title>
+    <title>LAN Party Chat · WebRTC Broadcast</title>
     <style>
         * {
             margin: 0;
@@ -12,7 +12,7 @@
         }
 
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
@@ -56,11 +56,17 @@
             padding: 8px 16px;
             border-radius: 20px;
             font-size: 0.85rem;
+            font-weight: 500;
         }
 
         .connection-status.connected {
             background: #4ade80;
             color: #1e3a2f;
+        }
+
+        .connection-status.error {
+            background: #ef4444;
+            color: white;
         }
 
         .main {
@@ -101,33 +107,36 @@
             padding: 12px;
             margin-bottom: 8px;
             border-radius: 10px;
-            cursor: pointer;
-            transition: all 0.2s;
             border: 1px solid #e5e7eb;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            transition: all 0.2s;
         }
 
-        .peer-item:hover {
-            transform: translateX(5px);
-            border-color: #667eea;
-            box-shadow: 0 2px 8px rgba(102,126,234,0.2);
-        }
-
-        .peer-item.selected {
-            background: #667eea;
-            color: white;
-            border-color: #667eea;
+        .peer-info {
+            flex: 1;
         }
 
         .peer-name {
             font-weight: 600;
+            margin-bottom: 4px;
         }
 
         .peer-status {
             font-size: 0.7rem;
+        }
+
+        .peer-status.connected {
             color: #10b981;
+        }
+
+        .peer-status.connecting {
+            color: #f59e0b;
+        }
+
+        .peer-status.disconnected {
+            color: #ef4444;
         }
 
         .chat-area {
@@ -171,6 +180,7 @@
             border-radius: 15px;
             background: white;
             box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            word-wrap: break-word;
         }
 
         .message.self .message-bubble {
@@ -197,6 +207,19 @@
             font-size: 0.7rem;
             margin-top: 5px;
             opacity: 0.7;
+        }
+
+        .system-message {
+            text-align: center;
+            margin: 10px 0;
+        }
+
+        .system-message span {
+            background: #f3f4f6;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            color: #6b7280;
         }
 
         .input-area {
@@ -231,7 +254,7 @@
             transition: all 0.2s;
         }
 
-        .input-area button:hover {
+        .input-area button:hover:not(:disabled) {
             background: #5a67d8;
             transform: translateY(-1px);
         }
@@ -248,6 +271,7 @@
             display: flex;
             gap: 10px;
             align-items: center;
+            flex-wrap: wrap;
         }
 
         .settings-panel input {
@@ -255,6 +279,7 @@
             padding: 8px;
             border: 1px solid #d1d5db;
             border-radius: 8px;
+            font-size: 0.85rem;
         }
 
         .settings-panel button {
@@ -264,6 +289,11 @@
             border: none;
             border-radius: 8px;
             cursor: pointer;
+            font-size: 0.85rem;
+        }
+
+        .settings-panel button:hover {
+            background: #4b5563;
         }
 
         @media (max-width: 768px) {
@@ -281,10 +311,10 @@
     <div class="header">
         <div class="title">
             <h1>🎉 LAN Party Chat</h1>
-            <p>Global Broadcast Mode · Powered by WebRTC + Signaling Server</p>
+            <p>WebRTC Broadcast · No Database Required</p>
         </div>
         <div class="connection-status" id="connectionStatus">
-            🔌 Connecting...
+            🔌 Disconnected
         </div>
     </div>
     
@@ -295,7 +325,7 @@
                 <div id="peerCount" style="font-size: 0.85rem; color: #6b7280;">0 online</div>
             </div>
             <div class="peer-list" id="peerList">
-                <div style="text-align: center; padding: 20px; color: #9ca3af;">Waiting for peers...</div>
+                <div style="text-align: center; padding: 20px; color: #9ca3af;">Connect to see peers...</div>
             </div>
         </div>
         
@@ -305,7 +335,7 @@
                 <p style="font-size: 0.85rem; color: #6b7280; margin-top: 5px;">Messages are sent to all connected peers</p>
             </div>
             <div class="messages" id="messages">
-                <div style="text-align: center; color: #9ca3af; padding: 40px;">✨ Send a message to start the conversation</div>
+                <div style="text-align: center; color: #9ca3af; padding: 40px;">✨ Connect and send a message</div>
             </div>
             <div class="input-area">
                 <input type="text" id="messageInput" placeholder="Type your broadcast message..." disabled>
@@ -313,10 +343,10 @@
             </div>
             <div class="settings-panel">
                 <label style="font-size: 0.85rem;">Your name:</label>
-                <input type="text" id="nameInput" placeholder="Enter your name">
+                <input type="text" id="nameInput" placeholder="Enter your name" style="max-width: 150px;">
                 <button id="updateNameBtn">Update</button>
                 <label style="font-size: 0.85rem; margin-left: auto;">Server:</label>
-                <input type="text" id="serverUrl" placeholder="wss://your-server.onrender.com" style="width: 200px;">
+                <input type="text" id="serverUrl" placeholder="wss://your-server.onrender.com" style="min-width: 200px;">
                 <button id="connectBtn">Connect</button>
             </div>
         </div>
@@ -324,405 +354,572 @@
 </div>
 
 <script>
-    // Configuration
-    let ws = null;
-    let localPeerId = null;
-    let localPeerName = localStorage.getItem('peerName') || `User-${Math.random().toString(36).substr(2, 6)}`;
-    let peers = new Map(); // peerId -> { peerName, connected, pc?, dataChannel? }
-    let peerConnections = new Map(); // peerId -> { pc, dataChannel }
-    let messages = [];
-    let selectedPeerId = null;
-    
-    // WebRTC Configuration
-    const rtcConfig = {
-        iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun2.l.google.com:19302' }
-        ]
-    };
-    
-    // DOM Elements
-    const peerListDiv = document.getElementById('peerList');
-    const messagesDiv = document.getElementById('messages');
-    const messageInput = document.getElementById('messageInput');
-    const sendBtn = document.getElementById('sendBtn');
-    const nameInput = document.getElementById('nameInput');
-    const updateNameBtn = document.getElementById('updateNameBtn');
-    const serverUrlInput = document.getElementById('serverUrl');
-    const connectBtn = document.getElementById('connectBtn');
-    const connectionStatus = document.getElementById('connectionStatus');
-    const peerCountSpan = document.getElementById('peerCount');
-    
-    // Initialize
-    nameInput.value = localPeerName;
-    serverUrlInput.value = localStorage.getItem('serverUrl') || 'wss://your-signaling-server.onrender.com';
-    
-    function generatePeerId() {
-        return 'peer_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
-    }
-    
-    function connectToSignalingServer() {
-        const serverUrl = serverUrlInput.value.trim();
-        if (!serverUrl) {
-            alert('Please enter signaling server URL');
-            return;
-        }
-        
-        localStorage.setItem('serverUrl', serverUrl);
-        
-        if (ws) {
-            ws.close();
-        }
-        
-        ws = new WebSocket(serverUrl);
-        
-        ws.onopen = () => {
-            console.log('Connected to signaling server');
-            connectionStatus.textContent = '✅ Connected';
-            connectionStatus.className = 'connection-status connected';
+    class WebRTCBroadcastClient {
+        constructor() {
+            this.ws = null;
+            this.localPeerId = null;
+            this.localPeerName = localStorage.getItem('peerName') || this.generateRandomName();
+            this.peers = new Map(); // peerId -> { peerName, connectionState, pc, dataChannel }
+            this.messages = [];
+            this.reconnectAttempts = 0;
+            this.maxReconnectAttempts = 5;
+            this.reconnectTimeout = null;
             
-            localPeerId = generatePeerId();
+            // DOM Elements
+            this.peerListDiv = document.getElementById('peerList');
+            this.messagesDiv = document.getElementById('messages');
+            this.messageInput = document.getElementById('messageInput');
+            this.sendBtn = document.getElementById('sendBtn');
+            this.nameInput = document.getElementById('nameInput');
+            this.updateNameBtn = document.getElementById('updateNameBtn');
+            this.serverUrlInput = document.getElementById('serverUrl');
+            this.connectBtn = document.getElementById('connectBtn');
+            this.connectionStatus = document.getElementById('connectionStatus');
+            this.peerCountSpan = document.getElementById('peerCount');
+            
+            // Initialize
+            this.nameInput.value = this.localPeerName;
+            this.serverUrlInput.value = localStorage.getItem('serverUrl') || '';
+            
+            // Bind events
+            this.bindEvents();
+            
+            // Auto-connect if server URL exists
+            if (this.serverUrlInput.value) {
+                setTimeout(() => this.connect(), 500);
+            }
+        }
+        
+        generateRandomName() {
+            const adjectives = ['Happy', 'Clever', 'Swift', 'Brave', 'Calm', 'Witty', 'Kind', 'Bold'];
+            const nouns = ['Panda', 'Tiger', 'Eagle', 'Wolf', 'Fox', 'Hawk', 'Owl', 'Lion'];
+            const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
+            const noun = nouns[Math.floor(Math.random() * nouns.length)];
+            return `${adj}${noun}${Math.floor(Math.random() * 100)}`;
+        }
+        
+        bindEvents() {
+            this.sendBtn.addEventListener('click', () => this.sendBroadcast());
+            this.messageInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') this.sendBroadcast();
+            });
+            this.updateNameBtn.addEventListener('click', () => this.updateName());
+            this.connectBtn.addEventListener('click', () => this.connect());
+        }
+        
+        async connect() {
+            const serverUrl = this.serverUrlInput.value.trim();
+            if (!serverUrl) {
+                this.showStatus('Please enter server URL', 'error');
+                return;
+            }
+            
+            localStorage.setItem('serverUrl', serverUrl);
+            this.showStatus('Connecting...', 'connecting');
+            
+            if (this.ws) {
+                this.ws.close();
+            }
+            
+            try {
+                this.ws = new WebSocket(serverUrl);
+                
+                this.ws.onopen = () => this.onWebSocketOpen();
+                this.ws.onmessage = (event) => this.onWebSocketMessage(event);
+                this.ws.onerror = (error) => this.onWebSocketError(error);
+                this.ws.onclose = () => this.onWebSocketClose();
+            } catch (error) {
+                console.error('Connection error:', error);
+                this.showStatus('Connection failed', 'error');
+                this.scheduleReconnect();
+            }
+        }
+        
+        onWebSocketOpen() {
+            console.log('WebSocket connected');
+            this.showStatus('Connected', 'connected');
+            this.reconnectAttempts = 0;
+            
+            this.localPeerId = this.generatePeerId();
             
             // Register with server
-            ws.send(JSON.stringify({
+            this.sendSignaling({
                 type: 'register',
-                peerId: localPeerId,
-                peerName: localPeerName,
+                peerId: this.localPeerId,
+                peerName: this.localPeerName,
                 room: 'default'
-            }));
+            });
             
-            messageInput.disabled = false;
-            sendBtn.disabled = false;
-        };
+            this.messageInput.disabled = false;
+            this.sendBtn.disabled = false;
+        }
         
-        ws.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            handleSignalingMessage(data);
-        };
+        onWebSocketMessage(event) {
+            try {
+                const data = JSON.parse(event.data);
+                this.handleSignalingMessage(data);
+            } catch (error) {
+                console.error('Error parsing message:', error);
+            }
+        }
         
-        ws.onerror = (error) => {
+        onWebSocketError(error) {
             console.error('WebSocket error:', error);
-            connectionStatus.textContent = '❌ Connection error';
-            connectionStatus.className = 'connection-status';
-        };
+            this.showStatus('Connection error', 'error');
+        }
         
-        ws.onclose = () => {
-            console.log('Disconnected from signaling server');
-            connectionStatus.textContent = '🔌 Disconnected';
-            connectionStatus.className = 'connection-status';
-            messageInput.disabled = true;
-            sendBtn.disabled = true;
-        };
-    }
-    
-    async function handleSignalingMessage(data) {
-        switch(data.type) {
-            case 'peer_list':
-                // Initialize peers from server
-                data.peers.forEach(peer => {
-                    if (!peers.has(peer.peerId)) {
-                        peers.set(peer.peerId, {
-                            peerName: peer.peerName,
-                            connected: false
-                        });
-                        // Automatically connect to existing peers
-                        initiateConnection(peer.peerId, peer.peerName);
-                    }
-                });
-                updatePeerList();
-                break;
+        onWebSocketClose() {
+            console.log('WebSocket closed');
+            this.showStatus('Disconnected', 'error');
+            this.messageInput.disabled = true;
+            this.sendBtn.disabled = true;
+            this.scheduleReconnect();
+        }
+        
+        scheduleReconnect() {
+            if (this.reconnectTimeout) clearTimeout(this.reconnectTimeout);
+            
+            if (this.reconnectAttempts < this.maxReconnectAttempts) {
+                this.reconnectAttempts++;
+                const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
+                console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
                 
-            case 'peer_joined':
-                if (!peers.has(data.peerId)) {
-                    peers.set(data.peerId, {
-                        peerName: data.peerName,
-                        connected: false
+                this.reconnectTimeout = setTimeout(() => {
+                    this.connect();
+                }, delay);
+            } else {
+                console.log('Max reconnection attempts reached');
+                this.showStatus('Connection failed permanently', 'error');
+            }
+        }
+        
+        generatePeerId() {
+            return 'peer_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+        }
+        
+        sendSignaling(message) {
+            if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                this.ws.send(JSON.stringify(message));
+            }
+        }
+        
+        async handleSignalingMessage(data) {
+            switch(data.type) {
+                case 'peer_list':
+                    console.log('Received peer list:', data.peers);
+                    data.peers.forEach(peer => {
+                        if (!this.peers.has(peer.peerId)) {
+                            this.addPeer(peer.peerId, peer.peerName);
+                            this.initiateConnection(peer.peerId, peer.peerName);
+                        }
                     });
-                    updatePeerList();
-                    addSystemMessage(`${data.peerName} joined the chat`);
-                    // Automatically connect to new peer
-                    initiateConnection(data.peerId, data.peerName);
-                }
-                break;
-                
-            case 'peer_left':
-                if (peers.has(data.peerId)) {
-                    const peer = peers.get(data.peerId);
-                    addSystemMessage(`${peer.peerName} left the chat`);
-                    cleanupPeerConnection(data.peerId);
-                    peers.delete(data.peerId);
-                    updatePeerList();
-                }
-                break;
-                
-            case 'webrtc_offer':
-                await handleOffer(data.fromId, data.fromName, data.sdp);
-                break;
-                
-            case 'webrtc_answer':
-                await handleAnswer(data.fromId, data.sdp);
-                break;
-                
-            case 'webrtc_ice_candidate':
-                await handleIceCandidate(data.fromId, data.candidate);
-                break;
+                    this.updatePeerList();
+                    break;
+                    
+                case 'peer_joined':
+                    if (!this.peers.has(data.peerId)) {
+                        this.addPeer(data.peerId, data.peerName);
+                        this.initiateConnection(data.peerId, data.peerName);
+                        this.addSystemMessage(`${data.peerName} joined the chat`);
+                    }
+                    break;
+                    
+                case 'peer_left':
+                    if (this.peers.has(data.peerId)) {
+                        const peer = this.peers.get(data.peerId);
+                        this.addSystemMessage(`${peer.peerName} left the chat`);
+                        this.cleanupPeerConnection(data.peerId);
+                        this.peers.delete(data.peerId);
+                        this.updatePeerList();
+                    }
+                    break;
+                    
+                case 'webrtc_offer':
+                    await this.handleOffer(data.fromId, data.fromName, data.sdp);
+                    break;
+                    
+                case 'webrtc_answer':
+                    await this.handleAnswer(data.fromId, data.sdp);
+                    break;
+                    
+                case 'webrtc_ice_candidate':
+                    await this.handleIceCandidate(data.fromId, data.candidate);
+                    break;
+                    
+                case 'error':
+                    console.error('Server error:', data.message);
+                    this.addSystemMessage(`Error: ${data.message}`);
+                    break;
+                    
+                default:
+                    console.log('Unknown message type:', data.type);
+            }
         }
-    }
-    
-    async function initiateConnection(remotePeerId, remotePeerName) {
-        if (peerConnections.has(remotePeerId)) return;
         
-        const pc = new RTCPeerConnection(rtcConfig);
-        const dataChannel = pc.createDataChannel('broadcast');
+        addPeer(peerId, peerName) {
+            this.peers.set(peerId, {
+                peerName: peerName,
+                connectionState: 'connecting',
+                pc: null,
+                dataChannel: null
+            });
+            this.updatePeerList();
+        }
         
-        peerConnections.set(remotePeerId, { pc, dataChannel });
-        
-        dataChannel.onopen = () => {
-            console.log(`Data channel open with ${remotePeerName}`);
-            if (peers.has(remotePeerId)) {
-                peers.get(remotePeerId).connected = true;
-                updatePeerList();
+        async initiateConnection(remotePeerId, remotePeerName) {
+            if (this.peers.get(remotePeerId)?.pc) {
+                console.log('Connection already exists');
+                return;
             }
-            addSystemMessage(`Connected to ${remotePeerName}`);
-        };
-        
-        dataChannel.onclose = () => {
-            console.log(`Data channel closed with ${remotePeerName}`);
-            if (peers.has(remotePeerId)) {
-                peers.get(remotePeerId).connected = false;
-                updatePeerList();
-            }
-        };
-        
-        dataChannel.onmessage = (event) => {
-            const message = JSON.parse(event.data);
-            if (message.type === 'broadcast') {
-                addMessage(message.senderName, message.text, message.senderId === localPeerId);
-            }
-        };
-        
-        pc.onicecandidate = (event) => {
-            if (event.candidate) {
-                ws.send(JSON.stringify({
-                    type: 'webrtc_ice_candidate',
+            
+            try {
+                const pc = new RTCPeerConnection({
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' },
+                        { urls: 'stun:stun2.l.google.com:19302' }
+                    ]
+                });
+                
+                const dataChannel = pc.createDataChannel('broadcast');
+                
+                // Store connection
+                const peerInfo = this.peers.get(remotePeerId);
+                if (peerInfo) {
+                    peerInfo.pc = pc;
+                    peerInfo.dataChannel = dataChannel;
+                    peerInfo.connectionState = 'connecting';
+                }
+                
+                // Setup data channel handlers
+                dataChannel.onopen = () => {
+                    console.log(`Data channel open with ${remotePeerName}`);
+                    if (this.peers.has(remotePeerId)) {
+                        this.peers.get(remotePeerId).connectionState = 'connected';
+                        this.updatePeerList();
+                        this.addSystemMessage(`Connected to ${remotePeerName}`);
+                    }
+                };
+                
+                dataChannel.onclose = () => {
+                    console.log(`Data channel closed with ${remotePeerName}`);
+                    if (this.peers.has(remotePeerId)) {
+                        this.peers.get(remotePeerId).connectionState = 'disconnected';
+                        this.updatePeerList();
+                    }
+                };
+                
+                dataChannel.onerror = (error) => {
+                    console.error(`Data channel error with ${remotePeerName}:`, error);
+                };
+                
+                dataChannel.onmessage = (event) => {
+                    try {
+                        const message = JSON.parse(event.data);
+                        if (message.type === 'broadcast') {
+                            this.addMessage(message.senderName, message.text, message.senderId === this.localPeerId);
+                        }
+                    } catch (error) {
+                        console.error('Error parsing message:', error);
+                    }
+                };
+                
+                // ICE candidate handling
+                pc.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        this.sendSignaling({
+                            type: 'webrtc_ice_candidate',
+                            targetId: remotePeerId,
+                            candidate: event.candidate
+                        });
+                    }
+                };
+                
+                pc.oniceconnectionstatechange = () => {
+                    console.log(`ICE connection state with ${remotePeerName}: ${pc.iceConnectionState}`);
+                    if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+                        this.cleanupPeerConnection(remotePeerId);
+                    }
+                };
+                
+                // Create and send offer
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                
+                this.sendSignaling({
+                    type: 'webrtc_offer',
                     targetId: remotePeerId,
-                    candidate: event.candidate
-                }));
+                    sdp: pc.localDescription
+                });
+                
+            } catch (error) {
+                console.error('Error initiating connection:', error);
+                this.cleanupPeerConnection(remotePeerId);
             }
-        };
+        }
         
-        // Create and send offer
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        
-        ws.send(JSON.stringify({
-            type: 'webrtc_offer',
-            targetId: remotePeerId,
-            sdp: pc.localDescription
-        }));
-    }
-    
-    async function handleOffer(fromId, fromName, sdp) {
-        if (peerConnections.has(fromId)) return;
-        
-        const pc = new RTCPeerConnection(rtcConfig);
-        
-        pc.ondatachannel = (event) => {
-            const dataChannel = event.channel;
-            peerConnections.set(fromId, { pc, dataChannel });
+        async handleOffer(fromId, fromName, sdp) {
+            if (this.peers.has(fromId) && this.peers.get(fromId).pc) {
+                console.log('Connection already exists for offer');
+                return;
+            }
             
-            dataChannel.onopen = () => {
-                if (peers.has(fromId)) {
-                    peers.get(fromId).connected = true;
-                    updatePeerList();
-                }
-                addSystemMessage(`Connected to ${fromName}`);
-            };
-            
-            dataChannel.onclose = () => {
-                if (peers.has(fromId)) {
-                    peers.get(fromId).connected = false;
-                    updatePeerList();
-                }
-            };
-            
-            dataChannel.onmessage = (event) => {
-                const message = JSON.parse(event.data);
-                if (message.type === 'broadcast') {
-                    addMessage(message.senderName, message.text, message.senderId === localPeerId);
-                }
-            };
-        };
-        
-        pc.onicecandidate = (event) => {
-            if (event.candidate) {
-                ws.send(JSON.stringify({
-                    type: 'webrtc_ice_candidate',
+            try {
+                const pc = new RTCPeerConnection({
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' }
+                    ]
+                });
+                
+                let dataChannel = null;
+                
+                pc.ondatachannel = (event) => {
+                    dataChannel = event.channel;
+                    
+                    // Store connection
+                    const peerInfo = this.peers.get(fromId);
+                    if (peerInfo) {
+                        peerInfo.pc = pc;
+                        peerInfo.dataChannel = dataChannel;
+                        peerInfo.connectionState = 'connected';
+                    }
+                    
+                    dataChannel.onopen = () => {
+                        console.log(`Data channel open with ${fromName}`);
+                        if (this.peers.has(fromId)) {
+                            this.peers.get(fromId).connectionState = 'connected';
+                            this.updatePeerList();
+                            this.addSystemMessage(`Connected to ${fromName}`);
+                        }
+                    };
+                    
+                    dataChannel.onclose = () => {
+                        console.log(`Data channel closed with ${fromName}`);
+                        if (this.peers.has(fromId)) {
+                            this.peers.get(fromId).connectionState = 'disconnected';
+                            this.updatePeerList();
+                        }
+                    };
+                    
+                    dataChannel.onmessage = (event) => {
+                        try {
+                            const message = JSON.parse(event.data);
+                            if (message.type === 'broadcast') {
+                                this.addMessage(message.senderName, message.text, message.senderId === this.localPeerId);
+                            }
+                        } catch (error) {
+                            console.error('Error parsing message:', error);
+                        }
+                    };
+                };
+                
+                pc.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        this.sendSignaling({
+                            type: 'webrtc_ice_candidate',
+                            targetId: fromId,
+                            candidate: event.candidate
+                        });
+                    }
+                };
+                
+                pc.oniceconnectionstatechange = () => {
+                    console.log(`ICE connection state with ${fromName}: ${pc.iceConnectionState}`);
+                };
+                
+                await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+                const answer = await pc.createAnswer();
+                await pc.setLocalDescription(answer);
+                
+                this.sendSignaling({
+                    type: 'webrtc_answer',
                     targetId: fromId,
-                    candidate: event.candidate
-                }));
+                    sdp: pc.localDescription
+                });
+                
+            } catch (error) {
+                console.error('Error handling offer:', error);
             }
-        };
-        
-        await pc.setRemoteDescription(new RTCSessionDescription(sdp));
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        
-        ws.send(JSON.stringify({
-            type: 'webrtc_answer',
-            targetId: fromId,
-            sdp: pc.localDescription
-        }));
-    }
-    
-    async function handleAnswer(fromId, sdp) {
-        const connection = peerConnections.get(fromId);
-        if (connection && connection.pc) {
-            await connection.pc.setRemoteDescription(new RTCSessionDescription(sdp));
         }
-    }
-    
-    async function handleIceCandidate(fromId, candidate) {
-        const connection = peerConnections.get(fromId);
-        if (connection && connection.pc) {
-            await connection.pc.addIceCandidate(new RTCIceCandidate(candidate));
-        }
-    }
-    
-    function broadcastMessage(text) {
-        const message = {
-            type: 'broadcast',
-            senderId: localPeerId,
-            senderName: localPeerName,
-            text: text,
-            timestamp: Date.now()
-        };
         
-        // Send to all connected peers
-        peerConnections.forEach((conn, peerId) => {
-            if (conn.dataChannel && conn.dataChannel.readyState === 'open') {
-                conn.dataChannel.send(JSON.stringify(message));
+        async handleAnswer(fromId, sdp) {
+            const peerInfo = this.peers.get(fromId);
+            if (peerInfo && peerInfo.pc && peerInfo.pc.remoteDescription === null) {
+                try {
+                    await peerInfo.pc.setRemoteDescription(new RTCSessionDescription(sdp));
+                } catch (error) {
+                    console.error('Error setting remote description:', error);
+                }
             }
-        });
-        
-        addMessage(localPeerName, text, true);
-    }
-    
-    function addMessage(senderName, text, isSelf = false) {
-        messages.push({
-            senderName,
-            text,
-            timestamp: new Date(),
-            isSelf
-        });
-        renderMessages();
-    }
-    
-    function addSystemMessage(text) {
-        messages.push({
-            senderName: 'System',
-            text,
-            timestamp: new Date(),
-            isSystem: true
-        });
-        renderMessages();
-    }
-    
-    function renderMessages() {
-        if (messages.length === 0) {
-            messagesDiv.innerHTML = '<div style="text-align: center; color: #9ca3af; padding: 40px;">💬 No messages yet</div>';
-            return;
         }
         
-        messagesDiv.innerHTML = messages.map(msg => {
-            if (msg.isSystem) {
+        async handleIceCandidate(fromId, candidate) {
+            const peerInfo = this.peers.get(fromId);
+            if (peerInfo && peerInfo.pc && peerInfo.pc.remoteDescription) {
+                try {
+                    await peerInfo.pc.addIceCandidate(new RTCIceCandidate(candidate));
+                } catch (error) {
+                    console.error('Error adding ICE candidate:', error);
+                }
+            }
+        }
+        
+        cleanupPeerConnection(peerId) {
+            const peerInfo = this.peers.get(peerId);
+            if (peerInfo) {
+                if (peerInfo.dataChannel) {
+                    peerInfo.dataChannel.close();
+                }
+                if (peerInfo.pc) {
+                    peerInfo.pc.close();
+                }
+                peerInfo.pc = null;
+                peerInfo.dataChannel = null;
+                peerInfo.connectionState = 'disconnected';
+            }
+        }
+        
+        sendBroadcast() {
+            const text = this.messageInput.value.trim();
+            if (!text) return;
+            
+            const message = {
+                type: 'broadcast',
+                senderId: this.localPeerId,
+                senderName: this.localPeerName,
+                text: text,
+                timestamp: Date.now()
+            };
+            
+            // Send to all connected peers
+            let sent = 0;
+            for (const [peerId, peerInfo] of this.peers.entries()) {
+                if (peerInfo.dataChannel && peerInfo.dataChannel.readyState === 'open') {
+                    peerInfo.dataChannel.send(JSON.stringify(message));
+                    sent++;
+                }
+            }
+            
+            if (sent > 0) {
+                this.addMessage(this.localPeerName, text, true);
+                this.messageInput.value = '';
+            } else {
+                this.addSystemMessage('No connected peers to send to');
+            }
+        }
+        
+        addMessage(senderName, text, isSelf = false) {
+            this.messages.push({
+                senderName,
+                text,
+                timestamp: new Date(),
+                isSelf
+            });
+            this.renderMessages();
+        }
+        
+        addSystemMessage(text) {
+            this.messages.push({
+                isSystem: true,
+                text,
+                timestamp: new Date()
+            });
+            this.renderMessages();
+        }
+        
+        renderMessages() {
+            if (this.messages.length === 0) {
+                this.messagesDiv.innerHTML = '<div style="text-align: center; color: #9ca3af; padding: 40px;">💬 No messages yet</div>';
+                return;
+            }
+            
+            this.messagesDiv.innerHTML = this.messages.map(msg => {
+                if (msg.isSystem) {
+                    return `
+                        <div class="system-message">
+                            <span>${this.escapeHtml(msg.text)}</span>
+                        </div>
+                    `;
+                }
                 return `
-                    <div style="text-align: center; margin: 10px 0;">
-                        <span style="background: #f3f4f6; padding: 5px 12px; border-radius: 20px; font-size: 0.75rem; color: #6b7280;">${msg.text}</span>
+                    <div class="message ${msg.isSelf ? 'self' : ''}">
+                        <div class="message-bubble">
+                            <div class="message-sender">${this.escapeHtml(msg.senderName)}</div>
+                            <div class="message-text">${this.escapeHtml(msg.text)}</div>
+                            <div class="message-time">${msg.timestamp.toLocaleTimeString()}</div>
+                        </div>
                     </div>
                 `;
-            }
-            return `
-                <div class="message ${msg.isSelf ? 'self' : ''}">
-                    <div class="message-bubble">
-                        <div class="message-sender">${escapeHtml(msg.senderName)}</div>
-                        <div class="message-text">${escapeHtml(msg.text)}</div>
-                        <div class="message-time">${new Date(msg.timestamp).toLocaleTimeString()}</div>
-                    </div>
-                </div>
-            `;
-        }).join('');
-        
-        messagesDiv.scrollTop = messagesDiv.scrollHeight;
-    }
-    
-    function updatePeerList() {
-        const peerArray = Array.from(peers.entries());
-        peerCountSpan.textContent = `${peerArray.length} online`;
-        
-        if (peerArray.length === 0) {
-            peerListDiv.innerHTML = '<div style="text-align: center; padding: 20px; color: #9ca3af;">No peers online</div>';
-            return;
-        }
-        
-        peerListDiv.innerHTML = peerArray.map(([id, peer]) => `
-            <div class="peer-item">
-                <div>
-                    <div class="peer-name">${escapeHtml(peer.peerName)}</div>
-                    <div class="peer-status">${peer.connected ? '🟢 Connected' : '🟡 Connecting...'}</div>
-                </div>
-            </div>
-        `).join('');
-    }
-    
-    function escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-    
-    function updateName() {
-        const newName = nameInput.value.trim();
-        if (newName && newName !== localPeerName) {
-            localPeerName = newName;
-            localStorage.setItem('peerName', localPeerName);
-            addSystemMessage(`You are now known as ${localPeerName}`);
+            }).join('');
             
-            // Reconnect to update name with server
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({
-                    type: 'register',
-                    peerId: localPeerId,
-                    peerName: localPeerName,
-                    room: 'default'
-                }));
+            this.messagesDiv.scrollTop = this.messagesDiv.scrollHeight;
+        }
+        
+        updatePeerList() {
+            const peersArray = Array.from(this.peers.entries());
+            this.peerCountSpan.textContent = `${peersArray.length} online`;
+            
+            if (peersArray.length === 0) {
+                this.peerListDiv.innerHTML = '<div style="text-align: center; padding: 20px; color: #9ca3af;">No peers online</div>';
+                return;
+            }
+            
+            this.peerListDiv.innerHTML = peersArray.map(([id, peer]) => {
+                let statusClass = 'disconnected';
+                let statusText = 'Disconnected';
+                if (peer.connectionState === 'connected') {
+                    statusClass = 'connected';
+                    statusText = 'Connected';
+                } else if (peer.connectionState === 'connecting') {
+                    statusClass = 'connecting';
+                    statusText = 'Connecting...';
+                }
+                
+                return `
+                    <div class="peer-item">
+                        <div class="peer-info">
+                            <div class="peer-name">${this.escapeHtml(peer.peerName)}</div>
+                            <div class="peer-status ${statusClass}">● ${statusText}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        updateName() {
+            const newName = this.nameInput.value.trim();
+            if (newName && newName !== this.localPeerName) {
+                this.localPeerName = newName;
+                localStorage.setItem('peerName', this.localPeerName);
+                this.addSystemMessage(`You are now known as ${this.localPeerName}`);
+                
+                // Re-register with server
+                if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                    this.sendSignaling({
+                        type: 'register',
+                        peerId: this.localPeerId,
+                        peerName: this.localPeerName,
+                        room: 'default'
+                    });
+                }
             }
         }
+        
+        showStatus(message, type) {
+            this.connectionStatus.textContent = message;
+            this.connectionStatus.className = `connection-status ${type}`;
+        }
+        
+        escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
     }
     
-    // Event listeners
-    sendBtn.addEventListener('click', () => {
-        const text = messageInput.value.trim();
-        if (text) {
-            broadcastMessage(text);
-            messageInput.value = '';
-        }
-    });
-    
-    messageInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            sendBtn.click();
-        }
-    });
-    
-    updateNameBtn.addEventListener('click', updateName);
-    connectBtn.addEventListener('click', connectToSignalingServer);
-    
-    // Auto-connect on page load if server URL is set
-    if (serverUrlInput.value && serverUrlInput.value !== 'wss://your-signaling-server.onrender.com') {
-        connectToSignalingServer();
-    }
+    // Initialize the app
+    const app = new WebRTCBroadcastClient();
 </script>
 </body>
 </html>
