@@ -177,6 +177,16 @@
             font-size: 0.9rem;
         }
 
+        /* Styling for sent images inside chat bubbles */
+        .chat-image {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 8px;
+            margin-top: 4px;
+            display: block;
+            cursor: pointer;
+        }
+
         .system-message {
             text-align: center;
             margin: 8px 0;
@@ -196,6 +206,7 @@
             border-top: 1px solid #e5e7eb;
             display: flex;
             gap: 8px;
+            align-items: center;
         }
 
         .input-area input {
@@ -219,6 +230,18 @@
             border-radius: 10px;
             cursor: pointer;
             font-weight: 600;
+        }
+
+        /* Paperclip button layout */
+        .attach-btn {
+            background: #f3f4f6 !important;
+            color: #4b5563 !important;
+            padding: 10px 14px !important;
+            font-size: 1.1rem;
+        }
+
+        .attach-btn:hover {
+            background: #e5e7eb !important;
         }
 
         .settings-panel {
@@ -294,7 +317,10 @@
                 <div style="text-align: center; color: #9ca3af; padding: 40px;">✨ Send a message</div>
             </div>
             <div class="input-area">
-                <input type="text" id="messageInput" placeholder="Type message..." disabled>
+                <button id="attachBtn" class="attach-btn" title="Upload Image" disabled>📎</button>
+                <input type="file" id="imageInput" accept="image/*" style="display: none;">
+                
+                <input type="text" id="messageInput" placeholder="Type message or paste screenshot (Ctrl+V)..." disabled>
                 <button id="sendBtn" disabled>Send</button>
             </div>
             <div class="settings-panel">
@@ -321,6 +347,8 @@
             messagesDiv: document.getElementById('messages'),
             messageInput: document.getElementById('messageInput'),
             sendBtn: document.getElementById('sendBtn'),
+            attachBtn: document.getElementById('attachBtn'),
+            imageInput: document.getElementById('imageInput'),
             nameInput: document.getElementById('nameInput'),
             serverUrlInput: document.getElementById('serverUrl'),
             connectBtn: document.getElementById('connectBtn'),
@@ -383,7 +411,8 @@
             elements.messagesDiv.scrollTop = elements.messagesDiv.scrollHeight;
         }
         
-        function addMessage(sender, text, isSelf) {
+        // Upgraded render handler to automatically build images if image data exists
+        function addMessage(sender, text, isSelf, imageData = null) {
             if (elements.messagesDiv.children.length === 1 && 
                 elements.messagesDiv.children[0].innerText.includes('Send a message')) {
                 elements.messagesDiv.innerHTML = '';
@@ -391,10 +420,16 @@
             
             const msgDiv = document.createElement('div');
             msgDiv.className = `message ${isSelf ? 'self' : ''}`;
+            
+            let messageContent = `<div class="message-text">${escapeHtml(text)}</div>`;
+            if (imageData) {
+                messageContent += `<img src="${imageData}" class="chat-image" alt="Shared image" onclick="window.open(this.src)">`;
+            }
+
             msgDiv.innerHTML = `
                 <div class="message-bubble">
                     <div class="message-sender">${escapeHtml(sender)}</div>
-                    <div class="message-text">${escapeHtml(text)}</div>
+                    ${messageContent}
                 </div>
             `;
             elements.messagesDiv.appendChild(msgDiv);
@@ -437,7 +472,6 @@
         
         // WebRTC Functions with fixed negotiation
         async function initiateConnection(peerId, peerName) {
-            // Prevent multiple simultaneous negotiations
             if (isNegotiating) {
                 log(`Already negotiating, skipping ${peerName}`);
                 return;
@@ -460,7 +494,6 @@
                     ]
                 });
                 
-                // Only the offerer creates a data channel
                 const dc = pc.createDataChannel('chat');
                 connections.set(peerId, { pc, dc, name: peerName, role: 'initiator' });
                 
@@ -485,7 +518,7 @@
                     try {
                         const msg = JSON.parse(e.data);
                         if (msg.type === 'chat') {
-                            addMessage(msg.sender, msg.text, msg.senderId === localPeerId);
+                            addMessage(msg.sender, msg.text, msg.senderId === localPeerId, msg.image);
                         }
                     } catch (err) {}
                 };
@@ -507,7 +540,6 @@
                         isNegotiating = false;
                     } else if (pc.iceConnectionState === 'failed') {
                         log(`❌ ICE FAILED with ${peerName}`, 'error');
-                        log(`   Tip: Make sure both devices are on the same network`, 'warn');
                         cleanupPeer(peerId);
                         isNegotiating = false;
                     }
@@ -525,7 +557,6 @@
                     log(`📤 Offer sent to ${peerName}`);
                 }
                 
-                // Timeout
                 setTimeout(() => {
                     const conn = connections.get(peerId);
                     if (conn && conn.dc.readyState !== 'open') {
@@ -543,7 +574,6 @@
         }
         
         async function handleOffer(fromId, fromName, sdp) {
-            // If we're already negotiating or connected, ignore
             if (connections.has(fromId)) {
                 log(`Already have connection to ${fromName}, ignoring offer`);
                 return;
@@ -579,7 +609,7 @@
                         try {
                             const msg = JSON.parse(e.data);
                             if (msg.type === 'chat') {
-                                addMessage(msg.sender, msg.text, false);
+                                addMessage(msg.sender, msg.text, false, msg.image);
                             }
                         } catch (err) {}
                     };
@@ -641,9 +671,7 @@
             if (conn && conn.pc && conn.pc.remoteDescription) {
                 try {
                     await conn.pc.addIceCandidate(new RTCIceCandidate(candidate));
-                } catch (err) {
-                    // Ignore candidate errors
-                }
+                } catch (err) {}
             }
         }
         
@@ -677,7 +705,6 @@
         
         function reset() {
             log('🔄 Resetting all connections...');
-            // Close all peer connections
             for (const [id, conn] of connections) {
                 try { conn.pc.close(); } catch(e) {}
             }
@@ -686,7 +713,6 @@
             isNegotiating = false;
             renderPeers();
             
-            // Re-register with server
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({
                     type: 'register',
@@ -711,6 +737,7 @@
             
             elements.messageInput.disabled = false;
             elements.sendBtn.disabled = false;
+            elements.attachBtn.disabled = false; // Turn on paperclip
         }
         
         function onMessage(event) {
@@ -720,11 +747,9 @@
                 switch(data.type) {
                     case 'peer_list':
                         log(`Peer list: ${data.peers.length} peers`);
-                        // Only connect to peers with higher ID to avoid double connections
                         data.peers.forEach(peer => {
                             if (!peers.has(peer.peerId)) {
                                 addPeer(peer.peerId, peer.peerName);
-                                // Only the peer with the "higher" ID initiates to avoid race
                                 if (localPeerId > peer.peerId) {
                                     setTimeout(() => initiateConnection(peer.peerId, peer.peerName), 1000);
                                 } else {
@@ -739,7 +764,6 @@
                             log(`New peer joined: ${data.peerName}`);
                             addPeer(data.peerId, data.peerName);
                             addSystemMessage(`${data.peerName} joined`);
-                            // Only initiate if our ID is higher
                             if (localPeerId > data.peerId) {
                                 setTimeout(() => initiateConnection(data.peerId, data.peerName), 1000);
                             } else {
@@ -784,8 +808,8 @@
             setStatus('Disconnected');
             elements.messageInput.disabled = true;
             elements.sendBtn.disabled = true;
+            elements.attachBtn.disabled = true;
             
-            // Clean up all connections
             for (const [id, conn] of connections) {
                 try { conn.pc.close(); } catch(e) {}
             }
@@ -794,7 +818,6 @@
             renderPeers();
             isNegotiating = false;
             
-            // Auto reconnect
             setTimeout(() => {
                 if (!ws || ws.readyState === WebSocket.CLOSED) {
                     log('Auto-reconnecting...');
@@ -803,15 +826,19 @@
             }, 5000);
         }
         
-        function sendMessage() {
-            const text = elements.messageInput.value.trim();
-            if (!text) return;
+        // Upgraded message sender that accepts text messages, image data, or both
+        function sendMessage(textOverride = null, base64Image = null) {
+            const text = textOverride !== null ? textOverride : elements.messageInput.value.trim();
+            
+            // Block sending empty triggers
+            if (!text && !base64Image) return;
             
             const message = {
                 type: 'chat',
                 sender: localPeerName,
                 senderId: localPeerId,
-                text: text
+                text: text,
+                image: base64Image
             };
             
             let sent = 0;
@@ -823,13 +850,31 @@
             }
             
             if (sent > 0) {
-                addMessage(localPeerName, text, true);
-                elements.messageInput.value = '';
+                addMessage(localPeerName, text, true, base64Image);
+                if (textOverride === null) {
+                    elements.messageInput.value = '';
+                }
                 log(`📤 Message sent to ${sent} peer(s)`);
             } else {
-                log(`❌ No connected peers`, 'warn');
+                log(`❌ No connected peers to receive data`, 'warn');
                 addSystemMessage('No connected peers');
             }
+        }
+
+        // Processes files and packages them into Base64 formats for WebRTC transport
+        function processAndSendImage(file) {
+            if (!file) return;
+            if (!file.type.startsWith('image/')) {
+                log('❌ Warning: Only image files can be shared.', 'warn');
+                return;
+            }
+
+            log(`Processing image upload: ${file.name}...`);
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                sendMessage("", event.target.result);
+            };
+            reader.readAsDataURL(file);
         }
         
         function updateName() {
@@ -852,12 +897,30 @@
         
         // Event listeners
         elements.connectBtn.onclick = connect;
-        elements.sendBtn.onclick = sendMessage;
+        elements.sendBtn.onclick = () => sendMessage();
         elements.updateNameBtn.onclick = updateName;
         elements.resetBtn.onclick = reset;
         elements.messageInput.onkeypress = (e) => {
             if (e.key === 'Enter') sendMessage();
         };
+
+        // File uploader trigger logic
+        elements.attachBtn.onclick = () => elements.imageInput.click();
+        elements.imageInput.onchange = (e) => {
+            processAndSendImage(e.target.files[0]);
+            e.target.value = ''; // Reset input selection
+        };
+
+        // Screen Capture Paste Logic (Ctrl + V)
+        window.addEventListener('paste', (e) => {
+            const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].type.indexOf('image') !== -1) {
+                    const blob = items[i].getAsFile();
+                    processAndSendImage(blob);
+                }
+            }
+        });
         
         log('App ready - Fixed WebRTC connection handling');
         log('Enter your Render.com WebSocket URL and click Connect');
