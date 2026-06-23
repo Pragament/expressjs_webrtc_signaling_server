@@ -6,8 +6,8 @@ const os = require('os');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Serve static files
-app.use(express.static(path.join(__dirname, 'public')));
+// Serve static files from docs folder (for testing Service Workers)
+app.use(express.static(path.join(__dirname, 'docs')));
 
 const server = app.listen(PORT, () => {
     console.log(`🚀 Signaling server running on port ${PORT}`);
@@ -106,6 +106,17 @@ wss.on('connection', (ws, req) => {
                             message: 'Target peer not available'
                         }));
                     }
+                    break;
+                    
+                case 'broadcast_chat':
+                    broadcastToOthers(peerId, {
+                        type: 'server_chat',
+                        senderId: peerId,
+                        senderName: peerName,
+                        text: data.text,
+                        image: data.image,
+                        timestamp: Date.now()
+                    });
                     break;
                     
                 case 'ping':

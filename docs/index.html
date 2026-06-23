@@ -265,7 +265,33 @@
             opacity: 0.5;
             cursor: not-allowed;
         }
+
+        .message-image {
+            max-width: 100%;
+            border-radius: 8px;
+            margin-bottom: 5px;
+            cursor: pointer;
+            display: block;
+        }
+        
+        .attachment-btn {
+            background: #e5e7eb;
+            color: #4b5563;
+            padding: 0 15px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .attachment-btn:hover:not(:disabled) {
+            background: #d1d5db;
+        }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 <div class="app">
@@ -282,7 +308,8 @@
         <div class="sidebar">
             <div class="sidebar-header">
                 <h3>👥 Peers</h3>
-                <div id="peerCount">0 online</div>
+                <div id="peerCount" style="margin-top: 5px; font-size: 1.1rem; font-weight: bold; color: #10b981;">0 Online</div>
+                <div id="connectedCount" style="font-size: 0.8rem; color: #6b7280; margin-top: 2px;">0/0 connected</div>
             </div>
             <div class="peer-list" id="peerList">
                 <div style="text-align: center; padding: 20px; color: #9ca3af;">Connect to see peers</div>
@@ -294,15 +321,20 @@
                 <div style="text-align: center; color: #9ca3af; padding: 40px;">✨ Send a message</div>
             </div>
             <div class="input-area">
+                <input type="file" id="fileInput" accept="image/*" style="display: none;">
+                <button id="attachmentBtn" class="attachment-btn" title="Send Image" disabled>📎</button>
                 <input type="text" id="messageInput" placeholder="Type message..." disabled>
                 <button id="sendBtn" disabled>Send</button>
+            </div>
+            <div style="text-align: center; margin-bottom: 5px;">
+                <button id="enablePushBtn" style="background: transparent; color: #6b7280; font-size: 0.8rem; border: none; text-decoration: underline; cursor: pointer;">Enable Desktop Notifications</button>
             </div>
             <div class="settings-panel">
                 <label>Name:</label>
                 <input type="text" id="nameInput" style="width: 100px;">
                 <button id="updateNameBtn">Update</button>
                 <label>Server:</label>
-                <input type="text" id="serverUrl" placeholder="wss://your-server.onrender.com" style="min-width: 200px;">
+                <input type="text" id="serverUrl" placeholder="wss://..." style="min-width: 200px;">
                 <button id="connectBtn">Connect</button>
                 <button id="resetBtn" style="background:#ef4444;">Reset</button>
             </div>
@@ -319,6 +351,8 @@
         const elements = {
             peerListDiv: document.getElementById('peerList'),
             messagesDiv: document.getElementById('messages'),
+            fileInput: document.getElementById('fileInput'),
+            attachmentBtn: document.getElementById('attachmentBtn'),
             messageInput: document.getElementById('messageInput'),
             sendBtn: document.getElementById('sendBtn'),
             nameInput: document.getElementById('nameInput'),
@@ -328,17 +362,31 @@
             updateNameBtn: document.getElementById('updateNameBtn'),
             connectionStatus: document.getElementById('connectionStatus'),
             peerCountSpan: document.getElementById('peerCount'),
+            connectedCountSpan: document.getElementById('connectedCount'),
             debugPanel: document.getElementById('debugPanel')
         };
         
-        // State
+        // Supabase Initialization
+        const SUPABASE_URL = 'https://wmlgywjigexyrgpjlztf.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_hk6pKPo2ujDHCYvylvbY0g_P6B1v_PN';
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        
+        // Push Notification Constants
+        const VAPID_PUBLIC_KEY = 'BDlvn1pa0AAv0Ul-e5xr-PvoWxExA8q3rBx90gktFfEWxFzvDy1-nC-wZqK-pXGLiZMX86WleU3rLIF9kTwn694';
+        
         let ws = null;
         let localPeerId = null;
         let localPeerName = localStorage.getItem('peerName') || 'User' + Math.floor(Math.random() * 100);
+        
+        // Smart Default URL
+        const defaultServerUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+            ? `ws://${window.location.host}` 
+            : 'wss://expressjs-webrtc-signaling-server.onrender.com';
+        
         let peers = new Map();
         let connections = new Map();
+        let negotiatingPeers = new Set();
         let logs = [];
-        let isNegotiating = false;
         
         // Initialize
         elements.nameInput.value = localPeerName;
@@ -346,6 +394,8 @@
         const savedUrl = localStorage.getItem('serverUrl');
         if (savedUrl) {
             elements.serverUrlInput.value = savedUrl;
+        } else {
+            elements.serverUrlInput.value = defaultServerUrl;
         }
         
         function log(msg, type = 'info') {
@@ -383,7 +433,7 @@
             elements.messagesDiv.scrollTop = elements.messagesDiv.scrollHeight;
         }
         
-        function addMessage(sender, text, isSelf) {
+        function addMessage(sender, text, isSelf, imageUrl = null) {
             if (elements.messagesDiv.children.length === 1 && 
                 elements.messagesDiv.children[0].innerText.includes('Send a message')) {
                 elements.messagesDiv.innerHTML = '';
@@ -391,10 +441,19 @@
             
             const msgDiv = document.createElement('div');
             msgDiv.className = `message ${isSelf ? 'self' : ''}`;
+            
+            let contentHtml = '';
+            if (imageUrl) {
+                contentHtml += `<img src="${imageUrl}" class="message-image" onclick="window.open(this.src)">`;
+            }
+            if (text) {
+                contentHtml += `<div class="message-text">${escapeHtml(text)}</div>`;
+            }
+            
             msgDiv.innerHTML = `
                 <div class="message-bubble">
                     <div class="message-sender">${escapeHtml(sender)}</div>
-                    <div class="message-text">${escapeHtml(text)}</div>
+                    ${contentHtml}
                 </div>
             `;
             elements.messagesDiv.appendChild(msgDiv);
@@ -404,10 +463,18 @@
         function renderPeers() {
             const peersArray = Array.from(peers.entries());
             const connectedCount = Array.from(peers.values()).filter(p => p.status === 'connected').length;
-            elements.peerCountSpan.textContent = `${connectedCount}/${peersArray.length} connected`;
+            const isServerConnected = ws && ws.readyState === WebSocket.OPEN;
+            const totalOnline = isServerConnected ? peersArray.length + 1 : 0;
+            
+            if (elements.peerCountSpan) {
+                elements.peerCountSpan.textContent = `${totalOnline} Online`;
+            }
+            if (elements.connectedCountSpan) {
+                elements.connectedCountSpan.textContent = `${connectedCount}/${peersArray.length} connected`;
+            }
             
             if (peersArray.length === 0) {
-                elements.peerListDiv.innerHTML = '<div style="text-align: center; padding: 20px; color: #9ca3af;">No peers online</div>';
+                elements.peerListDiv.innerHTML = '<div style="text-align: center; padding: 20px; color: #9ca3af;">No other peers online</div>';
                 return;
             }
             
@@ -422,6 +489,7 @@
         }
         
         function cleanupPeer(peerId) {
+            negotiatingPeers.delete(peerId);
             const conn = connections.get(peerId);
             if (conn) {
                 if (conn.pc) {
@@ -437,9 +505,9 @@
         
         // WebRTC Functions with fixed negotiation
         async function initiateConnection(peerId, peerName) {
-            // Prevent multiple simultaneous negotiations
-            if (isNegotiating) {
-                log(`Already negotiating, skipping ${peerName}`);
+            // Prevent multiple simultaneous negotiations with the same peer
+            if (negotiatingPeers.has(peerId)) {
+                log(`Already negotiating with ${peerName}`);
                 return;
             }
             
@@ -448,7 +516,7 @@
                 return;
             }
             
-            isNegotiating = true;
+            negotiatingPeers.add(peerId);
             log(`🔌 Initiating connection to ${peerName}...`);
             
             try {
@@ -485,7 +553,7 @@
                     try {
                         const msg = JSON.parse(e.data);
                         if (msg.type === 'chat') {
-                            addMessage(msg.sender, msg.text, msg.senderId === localPeerId);
+                            addMessage(msg.sender, msg.text, msg.senderId === localPeerId, msg.image);
                         }
                     } catch (err) {}
                 };
@@ -504,12 +572,11 @@
                     log(`ICE state with ${peerName}: ${pc.iceConnectionState}`);
                     if (pc.iceConnectionState === 'connected') {
                         log(`🎉 ICE CONNECTED to ${peerName}!`);
-                        isNegotiating = false;
+                        negotiatingPeers.delete(peerId);
                     } else if (pc.iceConnectionState === 'failed') {
                         log(`❌ ICE FAILED with ${peerName}`, 'error');
                         log(`   Tip: Make sure both devices are on the same network`, 'warn');
                         cleanupPeer(peerId);
-                        isNegotiating = false;
                     }
                 };
                 
@@ -528,17 +595,16 @@
                 // Timeout
                 setTimeout(() => {
                     const conn = connections.get(peerId);
-                    if (conn && conn.dc.readyState !== 'open') {
+                    if (conn && conn.dc && conn.dc.readyState !== 'open') {
                         log(`⏰ Connection timeout for ${peerName}`, 'warn');
                         cleanupPeer(peerId);
-                        isNegotiating = false;
                     }
+                    negotiatingPeers.delete(peerId);
                 }, 20000);
                 
             } catch (err) {
                 log(`Connection error: ${err.message}`, 'error');
                 cleanupPeer(peerId);
-                isNegotiating = false;
             }
         }
         
@@ -579,7 +645,7 @@
                         try {
                             const msg = JSON.parse(e.data);
                             if (msg.type === 'chat') {
-                                addMessage(msg.sender, msg.text, false);
+                                addMessage(msg.sender, msg.text, false, msg.image);
                             }
                         } catch (err) {}
                     };
@@ -630,6 +696,14 @@
                 try {
                     await conn.pc.setRemoteDescription(new RTCSessionDescription(sdp));
                     log(`✅ Remote description set for ${conn.name}`);
+                    
+                    // Add queued candidates
+                    if (conn.queuedCandidates) {
+                        for (const candidate of conn.queuedCandidates) {
+                            try { await conn.pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch(e) {}
+                        }
+                        conn.queuedCandidates = [];
+                    }
                 } catch (err) {
                     log(`Answer error: ${err.message}`, 'error');
                 }
@@ -638,11 +712,17 @@
         
         async function handleIceCandidate(fromId, candidate) {
             const conn = connections.get(fromId);
-            if (conn && conn.pc && conn.pc.remoteDescription) {
-                try {
-                    await conn.pc.addIceCandidate(new RTCIceCandidate(candidate));
-                } catch (err) {
-                    // Ignore candidate errors
+            if (conn && conn.pc) {
+                if (conn.pc.remoteDescription) {
+                    try {
+                        await conn.pc.addIceCandidate(new RTCIceCandidate(candidate));
+                    } catch (err) {
+                        // Ignore candidate errors
+                    }
+                } else {
+                    // Queue candidate until remote description is set
+                    conn.queuedCandidates = conn.queuedCandidates || [];
+                    conn.queuedCandidates.push(candidate);
                 }
             }
         }
@@ -683,7 +763,7 @@
             }
             connections.clear();
             peers.clear();
-            isNegotiating = false;
+            negotiatingPeers.clear();
             renderPeers();
             
             // Re-register with server
@@ -711,6 +791,8 @@
             
             elements.messageInput.disabled = false;
             elements.sendBtn.disabled = false;
+            elements.attachmentBtn.disabled = false;
+            renderPeers();
         }
         
         function onMessage(event) {
@@ -768,6 +850,15 @@
                     case 'webrtc_ice_candidate':
                         handleIceCandidate(data.fromId, data.candidate);
                         break;
+                        
+                    case 'server_chat':
+                        const conn = connections.get(data.senderId);
+                        if (conn && conn.dc && conn.dc.readyState === 'open') {
+                            // Already received or will receive via WebRTC
+                        } else {
+                            addMessage(data.senderName, data.text, false, data.image);
+                        }
+                        break;
                 }
             } catch (err) {
                 log(`Message error: ${err.message}`, 'error');
@@ -784,6 +875,7 @@
             setStatus('Disconnected');
             elements.messageInput.disabled = true;
             elements.sendBtn.disabled = true;
+            elements.attachmentBtn.disabled = true;
             
             // Clean up all connections
             for (const [id, conn] of connections) {
@@ -792,7 +884,7 @@
             connections.clear();
             peers.clear();
             renderPeers();
-            isNegotiating = false;
+            negotiatingPeers.clear();
             
             // Auto reconnect
             setTimeout(() => {
@@ -803,33 +895,109 @@
             }, 5000);
         }
         
-        function sendMessage() {
-            const text = elements.messageInput.value.trim();
-            if (!text) return;
+        function sendChatMessage(text, imageUrl = null) {
+            if (!text && !imageUrl) return;
             
             const message = {
                 type: 'chat',
                 sender: localPeerName,
                 senderId: localPeerId,
-                text: text
+                text: text,
+                image: imageUrl
             };
             
             let sent = 0;
             for (const [id, conn] of connections) {
                 if (conn.dc && conn.dc.readyState === 'open') {
-                    conn.dc.send(JSON.stringify(message));
-                    sent++;
+                    try {
+                        conn.dc.send(JSON.stringify(message));
+                        sent++;
+                    } catch(e) {
+                        log(`Failed to send to ${conn.name}`, 'warn');
+                    }
                 }
             }
             
-            if (sent > 0) {
-                addMessage(localPeerName, text, true);
-                elements.messageInput.value = '';
-                log(`📤 Message sent to ${sent} peer(s)`);
-            } else {
-                log(`❌ No connected peers`, 'warn');
-                addSystemMessage('No connected peers');
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'broadcast_chat',
+                    text: text,
+                    image: imageUrl
+                }));
+                sent++;
             }
+            
+            if (sent > 0) {
+                addMessage(localPeerName, text, true, imageUrl);
+                log(`📤 Message sent`);
+                
+                // Trigger Push Notification via Supabase Edge Function
+                triggerPushNotification(text, imageUrl);
+                
+            } else {
+                log(`❌ No connected peers or server`, 'warn');
+                addSystemMessage('No connected peers or server');
+            }
+        }
+        
+        async function triggerPushNotification(text, imageUrl) {
+            try {
+                await supabase.functions.invoke('send-push', {
+                    body: {
+                        senderName: localPeerName,
+                        message: text,
+                        image: imageUrl
+                    }
+                });
+            } catch (error) {
+                console.error('Error triggering push:', error);
+            }
+        }
+        
+        function sendMessage() {
+            const text = elements.messageInput.value.trim();
+            if (text) {
+                sendChatMessage(text);
+                elements.messageInput.value = '';
+            }
+        }
+        
+        function processAndSendImage(file) {
+            if (!file || !file.type.startsWith('image/')) return;
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const MAX_WIDTH = 800;
+                    const MAX_HEIGHT = 800;
+                    let width = img.width;
+                    let height = img.height;
+                    
+                    if (width > height) {
+                        if (width > MAX_WIDTH) {
+                            height *= MAX_WIDTH / width;
+                            width = MAX_WIDTH;
+                        }
+                    } else {
+                        if (height > MAX_HEIGHT) {
+                            width *= MAX_HEIGHT / height;
+                            height = MAX_HEIGHT;
+                        }
+                    }
+                    
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+                    sendChatMessage('', dataUrl);
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
         }
         
         function updateName() {
@@ -857,6 +1025,69 @@
         elements.resetBtn.onclick = reset;
         elements.messageInput.onkeypress = (e) => {
             if (e.key === 'Enter') sendMessage();
+        };
+        elements.attachmentBtn.onclick = () => elements.fileInput.click();
+        elements.fileInput.onchange = (e) => {
+            if (e.target.files && e.target.files[0]) {
+                processAndSendImage(e.target.files[0]);
+                e.target.value = ''; // Reset input
+            }
+        };
+        
+        // Push Notifications Setup
+        document.getElementById('enablePushBtn').onclick = async () => {
+            if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+                alert('Push notifications are not supported in this browser.');
+                return;
+            }
+            
+            try {
+                const permission = await Notification.requestPermission();
+                if (permission !== 'granted') {
+                    alert('Permission not granted for notifications.');
+                    return;
+                }
+                
+                const registration = await navigator.serviceWorker.register('./sw.js');
+                log('Service Worker registered');
+                
+                // Helper to convert base64 url to Uint8Array
+                const urlBase64ToUint8Array = (base64String) => {
+                    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+                    const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+                    const rawData = window.atob(base64);
+                    const outputArray = new Uint8Array(rawData.length);
+                    for (let i = 0; i < rawData.length; ++i) {
+                        outputArray[i] = rawData.charCodeAt(i);
+                    }
+                    return outputArray;
+                };
+                
+                let subscription = await registration.pushManager.getSubscription();
+                if (!subscription) {
+                    subscription = await registration.pushManager.subscribe({
+                        userVisibleOnly: true,
+                        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+                    });
+                }
+                
+                log('Push subscribed! Saving to Supabase...');
+                
+                // Save to Supabase
+                const { error } = await supabase.from('push_subscriptions').insert([
+                    { peer_name: localPeerName, subscription: subscription }
+                ]);
+                
+                if (error) {
+                    log(`DB Error: ${error.message}`, 'error');
+                } else {
+                    alert('Notifications enabled successfully!');
+                    document.getElementById('enablePushBtn').style.display = 'none';
+                }
+                
+            } catch (e) {
+                log(`Push setup error: ${e.message}`, 'error');
+            }
         };
         
         log('App ready - Fixed WebRTC connection handling');
