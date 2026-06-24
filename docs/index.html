@@ -372,7 +372,7 @@
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         
         // Push Notification Constants
-        const VAPID_PUBLIC_KEY = 'BDlvn1pa0AAv0Ul-e5xr-PvoWxExA8q3rBx90gktFfEWxFzvDy1-nC-wZqK-pXGLiZMX86WleU3rLIF9kTwn694';
+        const VAPID_PUBLIC_KEY = 'BHDhlUW-sgIDXRM0eqkkfu3DaEFWK9eD5531ZYMmTd5iWVh57Yoig6Ba-qb4VP_r1e8CEqQV1HS6aB-Z1ARcPFE';
         
         let ws = null;
         let localPeerId = null;
@@ -1064,12 +1064,13 @@
                 };
                 
                 let subscription = await registration.pushManager.getSubscription();
-                if (!subscription) {
-                    subscription = await registration.pushManager.subscribe({
-                        userVisibleOnly: true,
-                        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
-                    });
+                if (subscription) {
+                    await subscription.unsubscribe();
                 }
+                subscription = await registration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+                });
                 
                 log('Push subscribed! Saving to Supabase...');
                 
