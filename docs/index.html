@@ -290,14 +290,49 @@
         .attachment-btn:hover:not(:disabled) {
             background: #d1d5db;
         }
+
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); display: none;
+            justify-content: center; align-items: center; z-index: 1000;
+        }
+        .modal-content {
+            background: white; padding: 25px; border-radius: 15px;
+            width: 90%; max-width: 400px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            position: relative;
+        }
+        .modal-close {
+            position: absolute; top: 15px; right: 15px;
+            cursor: pointer; font-size: 1.2rem; background: none; border: none;
+            color: #6b7280;
+        }
+        .modal-title { margin-bottom: 20px; display: flex; align-items: center; gap: 10px; font-size: 1.2rem; font-weight: bold; color: #1f2937; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-size: 0.85rem; font-weight: 600; color: #4b5563; }
+        .form-group input { width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.9rem; }
+        .form-actions { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+        .btn-test { background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; padding: 8px 15px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.85rem; display: flex; align-items: center; gap: 5px; }
+        .btn-push { background: #10b981; color: white; border: none; padding: 8px 15px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.85rem; display: flex; align-items: center; gap: 5px; }
+        .btn-pull { background: #6366f1; color: white; border: none; padding: 8px 15px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.85rem; display: flex; align-items: center; gap: 5px; }
+        .help-text { font-size: 0.75rem; color: #6b7280; margin-top: 15px; line-height: 1.4; }
+        .header-btn {
+            background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4); 
+            color: white; border-radius: 50%; cursor: pointer; 
+            font-size: 1rem; transition: all 0.2s; display: flex; align-items: center; justify-content: center;
+            width: 32px; height: 32px; padding: 0;
+        }
+        .header-btn:hover { background: rgba(255,255,255,0.4); }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.css"/>
+    <script src="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.js.iife.js"></script>
 </head>
 <body>
 <div class="app">
-    <div class="header">
-        <div class="title">
-            <h1>🎉 LAN Party Chat · Fixed</h1>
+    <div class="header" id="tour-header">
+        <div class="title" style="display: flex; align-items: center; gap: 10px;">
+            <h1 style="font-size: 1.1rem; margin: 0;">🎉 LAN Party Chat · Fixed</h1>
+            <button id="settingsBtn" class="header-btn" title="Settings">⚙️</button>
         </div>
         <div class="connection-status" id="connectionStatus">
             ⚫ Disconnected
@@ -305,7 +340,7 @@
     </div>
     
     <div class="main">
-        <div class="sidebar">
+        <div class="sidebar" id="tour-sidebar">
             <div class="sidebar-header">
                 <h3>👥 Peers</h3>
                 <div id="peerCount" style="margin-top: 5px; font-size: 1.1rem; font-weight: bold; color: #10b981;">0 Online</div>
@@ -320,7 +355,7 @@
             <div class="messages" id="messages">
                 <div style="text-align: center; color: #9ca3af; padding: 40px;">✨ Send a message</div>
             </div>
-            <div class="input-area">
+            <div class="input-area" id="tour-input">
                 <input type="file" id="fileInput" accept="image/*" style="display: none;">
                 <button id="attachmentBtn" class="attachment-btn" title="Send Image" disabled>📎</button>
                 <input type="text" id="messageInput" placeholder="Type message..." disabled>
@@ -329,7 +364,7 @@
             <div style="text-align: center; margin-bottom: 5px;">
                 <button id="enablePushBtn" style="background: transparent; color: #6b7280; font-size: 0.8rem; border: none; text-decoration: underline; cursor: pointer;">Enable Desktop Notifications</button>
             </div>
-            <div class="settings-panel">
+            <div class="settings-panel" id="tour-settings">
                 <label>Name:</label>
                 <input type="text" id="nameInput" style="width: 100px;">
                 <button id="updateNameBtn">Update</button>
@@ -340,6 +375,52 @@
             </div>
             <div class="debug-panel" id="debugPanel">
                 💡 Ready to connect
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Settings Modal -->
+<div class="modal-overlay" id="settingsModal">
+    <div class="modal-content">
+        <button class="modal-close" id="closeSettingsBtn">✖</button>
+        <div class="modal-title">
+            ⚙️ Settings
+        </div>
+        
+        <div class="form-group" style="border-bottom: 1px solid #e5e7eb; padding-bottom: 15px; margin-bottom: 15px;">
+            <button id="helpBtn" style="width: 100%; background: #667eea; color: white; border: none; padding: 10px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.9rem;">❓ Start Interactive Tour</button>
+        </div>
+
+        <div id="facultyUnlockSection" style="text-align: center;">
+            <button id="unlockFacultyBtn" style="width: 100%; background: #4b5563; color: white; border: none; padding: 10px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.9rem;">🔒 Faculty Database Access</button>
+        </div>
+
+        <div id="supabaseSyncSection" style="display: none;">
+            <div class="modal-title" style="font-size: 1rem; margin-bottom: 15px; margin-top: 15px;">
+                ☁️ Supabase Sync
+            </div>
+            
+            <div class="form-group">
+                <label>Supabase URL</label>
+                <input type="text" id="syncSupabaseUrl" placeholder="https://your-project.supabase.co">
+            </div>
+            <div class="form-group">
+                <label>Supabase API Key (anon public)</label>
+                <input type="password" id="syncSupabaseKey" placeholder="eyJh...">
+            </div>
+            <div class="form-group">
+                <label>Table name</label>
+                <input type="text" id="syncTableName" placeholder="daily_activities">
+            </div>
+
+            <div class="form-actions">
+                <button class="btn-test" id="btnTestSync">🔌 Test Connection</button>
+                <button class="btn-push" id="btnPushSync">↑ Push to Supabase</button>
+                <button class="btn-pull" id="btnPullSync">↓ Pull from Supabase</button>
+            </div>
+            <div class="help-text">
+                Push sends all local data to Supabase. Pull replaces local data with remote data.
             </div>
         </div>
     </div>
@@ -363,7 +444,16 @@
             connectionStatus: document.getElementById('connectionStatus'),
             peerCountSpan: document.getElementById('peerCount'),
             connectedCountSpan: document.getElementById('connectedCount'),
-            debugPanel: document.getElementById('debugPanel')
+            debugPanel: document.getElementById('debugPanel'),
+            settingsModal: document.getElementById('settingsModal'),
+            settingsBtn: document.getElementById('settingsBtn'),
+            closeSettingsBtn: document.getElementById('closeSettingsBtn'),
+            syncUrl: document.getElementById('syncSupabaseUrl'),
+            syncKey: document.getElementById('syncSupabaseKey'),
+            syncTable: document.getElementById('syncTableName'),
+            btnTestSync: document.getElementById('btnTestSync'),
+            btnPushSync: document.getElementById('btnPushSync'),
+            btnPullSync: document.getElementById('btnPullSync')
         };
         
         // Supabase Initialization
@@ -387,6 +477,7 @@
         let connections = new Map();
         let negotiatingPeers = new Set();
         let logs = [];
+        let chatHistory = [];
         
         // Initialize
         elements.nameInput.value = localPeerName;
@@ -433,7 +524,17 @@
             elements.messagesDiv.scrollTop = elements.messagesDiv.scrollHeight;
         }
         
-        function addMessage(sender, text, isSelf, imageUrl = null) {
+        function addMessage(sender, text, isSelf, imageUrl = null, skipSave = false) {
+            if (!skipSave) {
+                chatHistory.push({
+                    id: Date.now() + Math.floor(Math.random() * 10000), // Ensure integer for int8 column
+                    Sender: sender, // Capital 'S' to match Supabase table
+                    text: text || '',
+                    image: imageUrl || null,
+                    created_at: new Date().toISOString()
+                });
+            }
+
             if (elements.messagesDiv.children.length === 1 && 
                 elements.messagesDiv.children[0].innerText.includes('Send a message')) {
                 elements.messagesDiv.innerHTML = '';
@@ -1033,6 +1134,24 @@
                 e.target.value = ''; // Reset input
             }
         };
+
+        // Handle image paste via keyboard controls (Ctrl+V / Cmd+V)
+        document.addEventListener('paste', (e) => {
+            if (elements.attachmentBtn.disabled) return; // Only allow if connected
+            
+            const items = (e.clipboardData || window.clipboardData).items;
+            for (let index in items) {
+                const item = items[index];
+                if (item.kind === 'file' && item.type.startsWith('image/')) {
+                    const blob = item.getAsFile();
+                    if (blob) {
+                        processAndSendImage(blob);
+                        e.preventDefault();
+                        break;
+                    }
+                }
+            }
+        });
         
         // Push Notifications Setup
         document.getElementById('enablePushBtn').onclick = async () => {
@@ -1093,6 +1212,190 @@
         
         log('App ready - Fixed WebRTC connection handling');
         log('Enter your Render.com WebSocket URL and click Connect');
+        
+        // --- Settings Modal & Sync Logic ---
+        elements.syncUrl.value = localStorage.getItem('syncSupabaseUrl') || '';
+        elements.syncKey.value = localStorage.getItem('syncSupabaseKey') || '';
+        elements.syncTable.value = localStorage.getItem('syncTableName') || '';
+
+        const saveSyncConfig = () => {
+            localStorage.setItem('syncSupabaseUrl', elements.syncUrl.value.trim());
+            localStorage.setItem('syncSupabaseKey', elements.syncKey.value.trim());
+            localStorage.setItem('syncTableName', elements.syncTable.value.trim());
+        };
+
+        elements.syncUrl.onchange = saveSyncConfig;
+        elements.syncKey.onchange = saveSyncConfig;
+        elements.syncTable.onchange = saveSyncConfig;
+
+        elements.settingsBtn.onclick = () => {
+            document.getElementById('facultyUnlockSection').style.display = 'block';
+            document.getElementById('supabaseSyncSection').style.display = 'none';
+            elements.settingsModal.style.display = 'flex';
+        };
+
+        document.getElementById('unlockFacultyBtn').onclick = () => {
+            const pin = prompt('Enter Faculty PIN:');
+            if (pin === '1234') {
+                document.getElementById('facultyUnlockSection').style.display = 'none';
+                document.getElementById('supabaseSyncSection').style.display = 'block';
+            } else if (pin !== null) {
+                alert('❌ Incorrect PIN. Access Denied.');
+            }
+        };
+
+        elements.closeSettingsBtn.onclick = () => {
+            elements.settingsModal.style.display = 'none';
+        };
+
+        const getSyncClient = () => {
+            let url = elements.syncUrl.value.trim();
+            const key = elements.syncKey.value.trim();
+            if (!url || !key) {
+                alert('Please enter both Supabase URL and API Key.');
+                return null;
+            }
+            if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                url = 'https://' + url;
+            }
+            try {
+                return window.supabase.createClient(url, key);
+            } catch (err) {
+                alert('Invalid URL format.');
+                return null;
+            }
+        };
+
+        elements.btnTestSync.onclick = async () => {
+            const client = getSyncClient();
+            const table = elements.syncTable.value.trim();
+            if (!client || !table) {
+                if(!table) alert('Please enter Table name.');
+                return;
+            }
+            
+            elements.btnTestSync.textContent = 'Testing...';
+            try {
+                const { data, error } = await client.from(table).select('*').limit(1);
+                if (error) throw error;
+                alert('✅ Connection successful! Found table.');
+            } catch (err) {
+                alert(`❌ Connection failed: ${err.message}`);
+            } finally {
+                elements.btnTestSync.textContent = '🔌 Test Connection';
+            }
+        };
+
+        elements.btnPushSync.onclick = async () => {
+            if (chatHistory.length === 0) {
+                alert('No local messages to push.');
+                return;
+            }
+            const client = getSyncClient();
+            const table = elements.syncTable.value.trim();
+            if (!client || !table) return;
+
+            elements.btnPushSync.textContent = 'Pushing...';
+            try {
+                const { error } = await client.from(table).upsert(chatHistory);
+                if (error) throw error;
+                alert(`✅ Successfully pushed ${chatHistory.length} messages to Supabase!`);
+            } catch (err) {
+                alert(`❌ Push failed: ${err.message}`);
+            } finally {
+                elements.btnPushSync.textContent = '↑ Push to Supabase';
+            }
+        };
+
+        elements.btnPullSync.onclick = async () => {
+            const client = getSyncClient();
+            const table = elements.syncTable.value.trim();
+            if (!client || !table) return;
+
+            elements.btnPullSync.textContent = 'Pulling...';
+            try {
+                const { data, error } = await client.from(table).select('*').order('created_at', { ascending: true });
+                if (error) throw error;
+                
+                chatHistory = data || [];
+                elements.messagesDiv.innerHTML = '';
+                if (chatHistory.length === 0) {
+                    elements.messagesDiv.innerHTML = '<div style="text-align: center; color: #9ca3af; padding: 40px;">✨ Send a message</div>';
+                } else {
+                    chatHistory.forEach(msg => {
+                        const senderName = msg.Sender || msg.sender;
+                        const isSelf = senderName === localPeerName;
+                        addMessage(senderName, msg.text, isSelf, msg.image, true);
+                    });
+                }
+                alert(`✅ Successfully pulled ${chatHistory.length} messages from Supabase!`);
+            } catch (err) {
+                alert(`❌ Pull failed: ${err.message}`);
+            } finally {
+                elements.btnPullSync.textContent = '↓ Pull from Supabase';
+                // scroll to bottom
+                elements.messagesDiv.scrollTop = elements.messagesDiv.scrollHeight;
+            }
+        };
+
+        // Driver.js Walkthrough Setup
+        const driver = window.driver.js.driver;
+        const driverObj = driver({
+            showProgress: true,
+            animate: true,
+            steps: [
+                {
+                    element: '#tour-header',
+                    popover: {
+                        title: 'Welcome to LAN Party Chat! 🎉',
+                        description: 'This is a simple, peer-to-peer chat application. Let\'s show you how it works.',
+                        side: 'bottom', align: 'start'
+                    }
+                },
+                {
+                    element: '#tour-settings',
+                    popover: {
+                        title: 'Connection Settings ⚙️',
+                        description: 'First, set your Name and make sure the Server URL is correct. Click "Connect" to join the chat server.',
+                        side: 'top', align: 'center'
+                    }
+                },
+                {
+                    element: '#tour-sidebar',
+                    popover: {
+                        title: 'Peers List 👥',
+                        description: 'Once connected, you will see other students (peers) online here. The app automatically establishes a secure WebRTC connection with them.',
+                        side: 'right', align: 'start'
+                    }
+                },
+                {
+                    element: '#messages',
+                    popover: {
+                        title: 'Chat History 💬',
+                        description: 'All your messages will appear here. Messages are sent securely directly to other peers.',
+                        side: 'left', align: 'center'
+                    }
+                },
+                {
+                    element: '#tour-input',
+                    popover: {
+                        title: 'Send Messages ✍️',
+                        description: 'Type your message here and click Send. You can also click the paperclip icon (📎) to send images!',
+                        side: 'top', align: 'center'
+                    }
+                }
+            ]
+        });
+
+        document.getElementById('helpBtn').addEventListener('click', () => {
+            elements.settingsModal.style.display = 'none';
+            driverObj.drive();
+        });
+
+        // Auto-start walkthrough on page load
+        setTimeout(() => {
+            driverObj.drive();
+        }, 1000);
     })();
 </script>
 </body>
