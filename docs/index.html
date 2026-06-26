@@ -261,6 +261,185 @@
             word-break: break-all;
         }
 
+        /* ── Debug Console (sidebar) ── */
+        .debug-console {
+            background: #12131a;
+            border-top: 2px solid #2d2f3e;
+            display: flex;
+            flex-direction: column;
+            max-height: 340px;
+            flex-shrink: 0;
+        }
+
+        .debug-console-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px 6px;
+            background: #1a1b26;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .debug-console-header h4 {
+            color: #a9b1d6;
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            margin: 0;
+        }
+
+        .debug-console-header .dc-chevron {
+            color: #565f89;
+            font-size: 0.7rem;
+            transition: transform 0.2s;
+        }
+
+        .debug-console.collapsed .dc-chevron { transform: rotate(180deg); }
+        .debug-console.collapsed .debug-console-body { display: none; }
+
+        .dc-stats {
+            display: flex;
+            gap: 8px;
+            padding: 6px 12px;
+            background: #1a1b26;
+            border-bottom: 1px solid #2d2f3e;
+            flex-wrap: wrap;
+        }
+
+        .dc-stat-chip {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.68rem;
+            font-family: monospace;
+            color: #9ece6a;
+            background: #1f2335;
+            border: 1px solid #2d2f3e;
+            border-radius: 20px;
+            padding: 2px 8px;
+            white-space: nowrap;
+        }
+
+        .dc-stat-chip .dot {
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: #9ece6a;
+            flex-shrink: 0;
+        }
+
+        .dc-stat-chip.orange .dot { background: #ff9e64; }
+        .dc-stat-chip.orange { color: #ff9e64; }
+        .dc-stat-chip.blue .dot { background: #7aa2f7; }
+        .dc-stat-chip.blue { color: #7aa2f7; }
+
+        .dc-peers-section {
+            padding: 6px 10px;
+            background: #12131a;
+            border-bottom: 1px solid #2d2f3e;
+            max-height: 110px;
+            overflow-y: auto;
+        }
+
+        .dc-peer-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 4px 6px;
+            margin-bottom: 3px;
+            border-radius: 6px;
+            background: #1a1b26;
+            border: 1px solid #2d2f3e;
+        }
+
+        .dc-peer-name {
+            font-size: 0.7rem;
+            font-family: monospace;
+            color: #c0caf5;
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .dc-peer-badge {
+            font-size: 0.6rem;
+            padding: 1px 6px;
+            border-radius: 10px;
+            font-family: monospace;
+            margin-left: 6px;
+            flex-shrink: 0;
+        }
+
+        .dc-peer-badge.connected { background: #1a3a2a; color: #9ece6a; border: 1px solid #2d5a3d; }
+        .dc-peer-badge.connecting { background: #2a2210; color: #ff9e64; border: 1px solid #5a4010; }
+        .dc-peer-badge.disconnected { background: #2a1a1a; color: #f7768e; border: 1px solid #5a2020; }
+
+        .dc-connect-btn {
+            font-size: 0.6rem;
+            padding: 2px 8px;
+            border: 1px solid #7aa2f7;
+            border-radius: 10px;
+            background: transparent;
+            color: #7aa2f7;
+            cursor: pointer;
+            margin-left: 6px;
+            font-family: monospace;
+            transition: all 0.15s;
+            flex-shrink: 0;
+        }
+
+        .dc-connect-btn:hover { background: #7aa2f7; color: #12131a; }
+        .dc-connect-btn:disabled { opacity: 0.35; cursor: not-allowed; border-color: #565f89; color: #565f89; }
+
+        .dc-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            padding: 7px 10px;
+            background: #1a1b26;
+            border-bottom: 1px solid #2d2f3e;
+        }
+
+        .dc-action-btn {
+            font-size: 0.62rem;
+            padding: 3px 9px;
+            border: 1px solid #2d2f3e;
+            border-radius: 12px;
+            background: #1f2335;
+            color: #a9b1d6;
+            cursor: pointer;
+            font-family: monospace;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.15s;
+            white-space: nowrap;
+        }
+
+        .dc-action-btn:hover { background: #2d2f3e; color: #c0caf5; border-color: #565f89; }
+        .dc-action-btn.offer-all { border-color: #9ece6a; color: #9ece6a; }
+        .dc-action-btn.offer-all:hover { background: #1a3a2a; }
+
+        .dc-log {
+            flex: 1;
+            overflow-y: auto;
+            padding: 6px 10px;
+            background: #12131a;
+            font-family: monospace;
+            font-size: 0.62rem;
+            color: #565f89;
+            min-height: 60px;
+            max-height: 100px;
+        }
+
+        .dc-log .log-line { margin-bottom: 1px; line-height: 1.4; }
+        .dc-log .log-line.info { color: #4ade80; }
+        .dc-log .log-line.warn { color: #ff9e64; }
+        .dc-log .log-line.error { color: #f7768e; }
+        .dc-log .log-line.system { color: #7aa2f7; }
+
         button:disabled {
             opacity: 0.5;
             cursor: not-allowed;
@@ -340,14 +519,46 @@
     </div>
     
     <div class="main">
-        <div class="sidebar" id="tour-sidebar">
+        <div class="sidebar" id="tour-sidebar" style="display:flex;flex-direction:column;overflow:hidden;">
             <div class="sidebar-header">
                 <h3>👥 Peers</h3>
                 <div id="peerCount" style="margin-top: 5px; font-size: 1.1rem; font-weight: bold; color: #10b981;">0 Online</div>
                 <div id="connectedCount" style="font-size: 0.8rem; color: #6b7280; margin-top: 2px;">0/0 connected</div>
             </div>
-            <div class="peer-list" id="peerList">
+            <div class="peer-list" id="peerList" style="flex:1;">
                 <div style="text-align: center; padding: 20px; color: #9ca3af;">Connect to see peers</div>
+            </div>
+
+            <!-- ══ Debug Console ══ -->
+            <div class="debug-console" id="debugConsole">
+                <div class="debug-console-header" id="debugConsoleToggle">
+                    <h4>🖥 Debug Console</h4>
+                    <span class="dc-chevron">▲</span>
+                </div>
+                <div class="debug-console-body" id="debugConsoleBody">
+                    <!-- Stats chips -->
+                    <div class="dc-stats">
+                        <div class="dc-stat-chip blue" id="dcWifiCount"><span class="dot"></span>0 on same WiFi</div>
+                        <div class="dc-stat-chip orange" id="dcReadyCount"><span class="dot"></span>0 ready</div>
+                        <div class="dc-stat-chip" id="dcConnectedCount"><span class="dot"></span>0 connected</div>
+                    </div>
+
+                    <!-- Per-peer connect rows -->
+                    <div class="dc-peers-section" id="dcPeerRows">
+                        <div style="color:#565f89;font-size:0.65rem;font-family:monospace;padding:4px;">No peers discovered</div>
+                    </div>
+
+                    <!-- Action buttons -->
+                    <div class="dc-actions">
+                        <button class="dc-action-btn" id="dcReconnectBtn">📡 Reconnect Signaling</button>
+                        <button class="dc-action-btn" id="dcRetryBtn">🔄 Retry Peer Handshake</button>
+                        <button class="dc-action-btn" id="dcClearLogBtn">🗑 Clear Log</button>
+                        <button class="dc-action-btn offer-all" id="dcOfferAllBtn">⚡ Offer All (0)</button>
+                    </div>
+
+                    <!-- Scrollable log -->
+                    <div class="dc-log" id="dcLog"><div class="log-line system">💡 Ready to connect</div></div>
+                </div>
             </div>
         </div>
         
@@ -373,9 +584,8 @@
                 <button id="connectBtn">Connect</button>
                 <button id="resetBtn" style="background:#ef4444;">Reset</button>
             </div>
-            <div class="debug-panel" id="debugPanel">
-                💡 Ready to connect
-            </div>
+            <!-- debug panel hidden; output goes to sidebar debug console -->
+            <div id="debugPanel" style="display:none;"></div>
         </div>
     </div>
 </div>
@@ -490,11 +700,25 @@
         }
         
         function log(msg, type = 'info') {
-            const timestamp = new Date().toLocaleTimeString();
-            logs.unshift(`[${timestamp}] ${msg}`);
-            if (logs.length > 20) logs.pop();
-            elements.debugPanel.innerHTML = logs.map(l => `> ${l}`).join('<br>');
+            const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
+            const entry = { ts: timestamp, msg, type };
+            logs.unshift(entry);
+            if (logs.length > 50) logs.pop();
+            renderDebugLog();
             console.log(msg);
+        }
+
+        function renderDebugLog() {
+            const dcLog = document.getElementById('dcLog');
+            if (!dcLog) return;
+            dcLog.innerHTML = logs.map(e =>
+                `<div class="log-line ${e.type}">[${e.ts}] ${escHtml(e.msg)}</div>`
+            ).join('');
+            dcLog.scrollTop = 0;
+        }
+
+        function escHtml(str) {
+            return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
         }
         
         function setStatus(text, isConnected = false) {
@@ -566,27 +790,75 @@
             const connectedCount = Array.from(peers.values()).filter(p => p.status === 'connected').length;
             const isServerConnected = ws && ws.readyState === WebSocket.OPEN;
             const totalOnline = isServerConnected ? peersArray.length + 1 : 0;
-            
+
             if (elements.peerCountSpan) {
                 elements.peerCountSpan.textContent = `${totalOnline} Online`;
             }
             if (elements.connectedCountSpan) {
                 elements.connectedCountSpan.textContent = `${connectedCount}/${peersArray.length} connected`;
             }
-            
+
             if (peersArray.length === 0) {
                 elements.peerListDiv.innerHTML = '<div style="text-align: center; padding: 20px; color: #9ca3af;">No other peers online</div>';
+            } else {
+                elements.peerListDiv.innerHTML = peersArray.map(([id, peer]) => `
+                    <div class="peer-item ${peer.status}">
+                        <div class="peer-name">${escapeHtml(peer.name)}</div>
+                        <div class="peer-status ${peer.status}">
+                            ${peer.status === 'connected' ? '● Connected' : '○ Connecting...'}
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            // Update debug console
+            renderDebugConsole();
+        }
+
+        function renderDebugConsole() {
+            const peersArray = Array.from(peers.entries());
+            const connectedCount = Array.from(peers.values()).filter(p => p.status === 'connected').length;
+            const isServerConnected = ws && ws.readyState === WebSocket.OPEN;
+            const wifiCount = isServerConnected ? peersArray.length : 0; // peers on same server = same WiFi room
+            const readyCount = Array.from(connections.values()).filter(c => c.dc && c.dc.readyState === 'open').length;
+
+            // Stats chips
+            const dcWifi = document.getElementById('dcWifiCount');
+            const dcReady = document.getElementById('dcReadyCount');
+            const dcConn = document.getElementById('dcConnectedCount');
+            if (dcWifi) dcWifi.innerHTML = `<span class="dot"></span>${wifiCount} on same WiFi`;
+            if (dcReady) dcReady.innerHTML = `<span class="dot"></span>${readyCount} ready`;
+            if (dcConn) dcConn.innerHTML = `<span class="dot"></span>${connectedCount} connected`;
+
+            // Offer All button count
+            const offerAllBtn = document.getElementById('dcOfferAllBtn');
+            const notConnected = peersArray.filter(([id, p]) => !connections.has(id) || (connections.get(id).dc && connections.get(id).dc.readyState !== 'open')).length;
+            if (offerAllBtn) offerAllBtn.textContent = `⚡ Offer All (${notConnected})`;
+
+            // Per-peer rows
+            const dcPeerRows = document.getElementById('dcPeerRows');
+            if (!dcPeerRows) return;
+
+            if (peersArray.length === 0) {
+                dcPeerRows.innerHTML = '<div style="color:#565f89;font-size:0.65rem;font-family:monospace;padding:4px;">No peers discovered</div>';
                 return;
             }
-            
-            elements.peerListDiv.innerHTML = peersArray.map(([id, peer]) => `
-                <div class="peer-item ${peer.status}">
-                    <div class="peer-name">${escapeHtml(peer.name)}</div>
-                    <div class="peer-status ${peer.status}">
-                        ${peer.status === 'connected' ? '● Connected' : '○ Connecting...'}
-                    </div>
-                </div>
-            `).join('');
+
+            dcPeerRows.innerHTML = peersArray.map(([id, peer]) => {
+                const conn = connections.get(id);
+                const isOpen = conn && conn.dc && conn.dc.readyState === 'open';
+                const isNegotiating = negotiatingPeers.has(id);
+                const statusLabel = isOpen ? 'connected' : isNegotiating ? 'connecting' : 'disconnected';
+                const btnLabel = isNegotiating ? 'Connecting...' : isOpen ? 'Connected ✓' : 'Connect';
+                const btnDisabled = (isOpen || isNegotiating) ? 'disabled' : '';
+                return `<div class="dc-peer-row">
+                    <span class="dc-peer-name" title="${escHtml(id)}">👤 ${escHtml(peer.name)}</span>
+                    <span class="dc-peer-badge ${statusLabel}">${statusLabel}</span>
+                    <button class="dc-connect-btn" ${btnDisabled}
+                        onclick="window._dcConnect('${escHtml(id)}', '${escHtml(peer.name)}')"
+                    >${btnLabel}</button>
+                </div>`;
+            }).join('');
         }
         
         function cleanupPeer(peerId) {
@@ -1119,6 +1391,54 @@
             }
         }
         
+        // Debug console connect handler (global so inline onclick works)
+        window._dcConnect = (peerId, peerName) => {
+            log(`🔌 Manual connect to ${peerName}...`);
+            initiateConnection(peerId, peerName);
+        };
+
+        // Debug console collapse/expand
+        document.getElementById('debugConsoleToggle').onclick = () => {
+            document.getElementById('debugConsole').classList.toggle('collapsed');
+        };
+
+        // Debug console action buttons
+        document.getElementById('dcReconnectBtn').onclick = () => {
+            log('📡 Reconnecting signaling...', 'system');
+            connect();
+        };
+
+        document.getElementById('dcRetryBtn').onclick = () => {
+            log('🔄 Retrying peer handshakes...', 'system');
+            for (const [id, peer] of peers) {
+                const conn = connections.get(id);
+                const isOpen = conn && conn.dc && conn.dc.readyState === 'open';
+                if (!isOpen && !negotiatingPeers.has(id)) {
+                    setTimeout(() => initiateConnection(id, peer.name), 300);
+                }
+            }
+        };
+
+        document.getElementById('dcClearLogBtn').onclick = () => {
+            logs = [];
+            renderDebugLog();
+            log('🗑 Log cleared', 'system');
+        };
+
+        document.getElementById('dcOfferAllBtn').onclick = () => {
+            log('⚡ Offering to all non-connected peers...', 'system');
+            for (const [id, peer] of peers) {
+                const conn = connections.get(id);
+                const isOpen = conn && conn.dc && conn.dc.readyState === 'open';
+                if (!isOpen) {
+                    // force-cleanup stale connection then initiate fresh
+                    cleanupPeer(id);
+                    peers.set(id, peer);
+                    setTimeout(() => initiateConnection(id, peer.name), 400);
+                }
+            }
+        };
+
         // Event listeners
         elements.connectBtn.onclick = connect;
         elements.sendBtn.onclick = sendMessage;
