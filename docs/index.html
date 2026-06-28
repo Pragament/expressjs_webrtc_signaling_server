@@ -507,6 +507,65 @@
     <script src="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.js.iife.js"></script>
 </head>
 <body>
+
+<!-- ═══ Login Overlay ═══ -->
+<div id="loginOverlay" style="
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 99999; transition: opacity 0.4s;
+">
+    <div style="
+        background: white; border-radius: 24px; padding: 40px 35px; width: 92%; max-width: 420px;
+        box-shadow: 0 25px 60px rgba(0,0,0,0.35); text-align: center;
+    ">
+        <div style="font-size: 2.5rem; margin-bottom: 5px;">🎓</div>
+        <h2 style="margin: 0 0 4px; font-size: 1.4rem; color: #1f2937;">Join Class Chat</h2>
+        <p style="color: #6b7280; font-size: 0.82rem; margin-bottom: 28px;">Enter your roll number to participate</p>
+
+        <div style="text-align: left; margin-bottom: 18px;">
+            <label style="display:block; font-size:0.82rem; font-weight:700; color:#374151; margin-bottom:6px;">Roll Number <span style='color:#ef4444'>*</span></label>
+            <input type="text" id="loginRollNumber" placeholder="e.g. 21CS042"
+                autocomplete="off" spellcheck="false"
+                style="
+                    width: 100%; padding: 13px 14px; border: 2px solid #e5e7eb; border-radius: 12px;
+                    font-size: 1.05rem; font-weight: 700; text-transform: uppercase;
+                    font-family: 'Segoe UI', monospace; letter-spacing: 0.05em;
+                    transition: border-color 0.2s;
+                "
+                onfocus="this.style.borderColor='#667eea'" onblur="this.style.borderColor='#e5e7eb'"
+            >
+        </div>
+
+        <div style="text-align: left; margin-bottom: 20px;">
+            <label style="display:block; font-size:0.82rem; font-weight:600; color:#6b7280; margin-bottom:6px;">Server URL</label>
+            <input type="text" id="loginServerUrl" placeholder="wss://your-server.onrender.com"
+                style="width: 100%; padding: 10px 12px; border: 1px solid #e5e7eb; border-radius: 10px; font-size: 0.82rem; color: #4b5563;"
+            >
+        </div>
+
+        <div id="loginError" style="
+            display: none; background: #fef2f2; color: #dc2626; padding: 10px 14px;
+            border-radius: 10px; font-size: 0.82rem; margin-bottom: 16px;
+            border: 1px solid #fecaca; text-align: left;
+        "></div>
+
+        <button id="loginJoinBtn" style="
+            width: 100%; padding: 14px; border: none; border-radius: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white; font-size: 1.05rem; font-weight: 700; cursor: pointer;
+            box-shadow: 0 4px 15px rgba(102,126,234,0.4); transition: transform 0.15s, box-shadow 0.15s;
+        "
+            onmousedown="this.style.transform='scale(0.97)'" onmouseup="this.style.transform=''"
+        >Join Class  →</button>
+
+        <p style="color: #9ca3af; font-size: 0.68rem; margin-top: 18px; line-height: 1.4;">
+            🔒 Your roll number is verified by the server.<br>
+            Your IP address is recorded for accountability.
+        </p>
+    </div>
+</div>
+
 <div class="app">
     <div class="header" id="tour-header">
         <div class="title" style="display: flex; align-items: center; gap: 10px;">
@@ -576,9 +635,9 @@
                 <button id="enablePushBtn" style="background: transparent; color: #6b7280; font-size: 0.8rem; border: none; text-decoration: underline; cursor: pointer;">Enable Desktop Notifications</button>
             </div>
             <div class="settings-panel" id="tour-settings">
-                <label>Name:</label>
-                <input type="text" id="nameInput" style="width: 100px;">
-                <button id="updateNameBtn">Update</button>
+                <label>Identity:</label>
+                <input type="text" id="nameInput" style="width: 140px; background:#f3f4f6; color:#6b7280; cursor:not-allowed; font-family:monospace; font-size:0.75rem;" disabled title="Your identity is assigned by the server based on your IP address. You cannot change it.">
+                <span style="font-size:0.65rem;color:#ef4444;font-weight:600;" title="Identity is server-assigned from your IP address to prevent impersonation">🔒 IP-Locked</span>
                 <label>Server:</label>
                 <input type="text" id="serverUrl" placeholder="wss://..." style="min-width: 200px;">
                 <button id="connectBtn">Connect</button>
@@ -650,7 +709,6 @@
             serverUrlInput: document.getElementById('serverUrl'),
             connectBtn: document.getElementById('connectBtn'),
             resetBtn: document.getElementById('resetBtn'),
-            updateNameBtn: document.getElementById('updateNameBtn'),
             connectionStatus: document.getElementById('connectionStatus'),
             peerCountSpan: document.getElementById('peerCount'),
             connectedCountSpan: document.getElementById('connectedCount'),
@@ -666,7 +724,22 @@
             btnPullSync: document.getElementById('btnPullSync')
         };
         
-        // Supabase Initialization
+        // ----- Persistent Device Fingerprint -----
+        // Generated once, stored in localStorage. Students cannot change this via UI.
+        function getOrCreateDeviceId() {
+            let id = localStorage.getItem('deviceFingerprint');
+            if (!id) {
+                // Generate a UUID-style fingerprint
+                id = 'dev_' + ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
+                    (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
+                );
+                localStorage.setItem('deviceFingerprint', id);
+            }
+            return id;
+        }
+        const DEVICE_ID = getOrCreateDeviceId();
+        // ------------------------------------------
+
         const SUPABASE_URL = 'https://wmlgywjigexyrgpjlztf.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_hk6pKPo2ujDHCYvylvbY0g_P6B1v_PN';
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -676,7 +749,18 @@
         
         let ws = null;
         let localPeerId = null;
-        let localPeerName = localStorage.getItem('peerName') || 'User' + Math.floor(Math.random() * 100);
+        // Name & roll number are assigned by the server after registration
+        let localPeerName = '…connecting';
+        let localRollNumber = sessionStorage.getItem('rollNumber') || '';  // survives page refresh within tab
+        let localIp = '?'; // filled in by server after register
+        let isRegistered = false;  // true once server accepts our roll number
+
+        // Login overlay elements
+        const loginOverlay = document.getElementById('loginOverlay');
+        const loginRollInput = document.getElementById('loginRollNumber');
+        const loginServerInput = document.getElementById('loginServerUrl');
+        const loginError = document.getElementById('loginError');
+        const loginJoinBtn = document.getElementById('loginJoinBtn');
         
         // Smart Default URL
         const defaultServerUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
@@ -689,14 +773,19 @@
         let logs = [];
         let chatHistory = [];
         
-        // Initialize
-        elements.nameInput.value = localPeerName;
-        
+        // Initialize - name is shown but fully locked (server-assigned from roll number)
+        elements.nameInput.value = 'Not registered';
+        elements.nameInput.setAttribute('title', 'Your identity is assigned by the server based on your roll number + IP address.');
+        log('🔒 Roll number login required before chatting.');
+
         const savedUrl = localStorage.getItem('serverUrl');
-        if (savedUrl) {
-            elements.serverUrlInput.value = savedUrl;
-        } else {
-            elements.serverUrlInput.value = defaultServerUrl;
+        const defaultUrl = savedUrl || defaultServerUrl;
+        elements.serverUrlInput.value = defaultUrl;
+        loginServerInput.value = defaultUrl;
+
+        // Pre-fill roll number if returning within same tab
+        if (localRollNumber) {
+            loginRollInput.value = localRollNumber;
         }
         
         function log(msg, type = 'info') {
@@ -748,11 +837,14 @@
             elements.messagesDiv.scrollTop = elements.messagesDiv.scrollHeight;
         }
         
-        function addMessage(sender, text, isSelf, imageUrl = null, skipSave = false) {
+        function addMessage(sender, text, isSelf, imageUrl = null, skipSave = false, senderIp = null, senderDeviceId = null, senderRollNumber = null) {
             if (!skipSave) {
                 chatHistory.push({
-                    id: Date.now() + Math.floor(Math.random() * 10000), // Ensure integer for int8 column
-                    Sender: sender, // Capital 'S' to match Supabase table
+                    id: Date.now() + Math.floor(Math.random() * 10000),
+                    Sender: sender,
+                    roll_number: senderRollNumber || (isSelf ? localRollNumber : null),
+                    sender_ip: senderIp || (isSelf ? localIp : null),
+                    device_id: senderDeviceId || (isSelf ? DEVICE_ID : null),
                     text: text || '',
                     image: imageUrl || null,
                     created_at: new Date().toISOString()
@@ -774,10 +866,37 @@
             if (text) {
                 contentHtml += `<div class="message-text">${escapeHtml(text)}</div>`;
             }
+
+            let senderLabel;
+            if (isSelf) {
+                // Self: show own roll number prominently
+                senderLabel = `<span style="font-weight:700;color:#4f46e5;">You</span> <span style="font-size:0.75rem;color:#818cf8;font-weight:700;font-family:monospace;">${escapeHtml(localRollNumber || '?')}</span>`;
+                if (localIp && localIp !== '?') senderLabel += ` <span style="font-size:0.6rem;color:#c7d2fe;font-family:monospace;">[${escapeHtml(localIp)}]</span>`;
+            } else {
+                // Remote: roll number is THE primary identifier
+                const roll = senderRollNumber || '';
+                const name = sender || '';
+                if (roll) {
+                    senderLabel = `<span style="font-weight:800;color:#059669;font-family:monospace;font-size:0.85rem;">${escapeHtml(roll)}</span>`;
+                    // Show student name if server provided one that differs from roll number
+                    if (name && name !== roll && !name.startsWith(roll)) {
+                        senderLabel += ` <span style="font-size:0.75rem;color:#6b7280;">(${escapeHtml(name)})</span>`;
+                    } else if (name && name.startsWith(roll) && name.length > roll.length) {
+                        // Name is like "21CS001 (Rahul Kumar)" — extract the part after roll number
+                        const extra = name.slice(roll.length).trim();
+                        if (extra) senderLabel += ` <span style="font-size:0.75rem;color:#6b7280;">${escapeHtml(extra)}</span>`;
+                    }
+                } else {
+                    senderLabel = `<span style="font-weight:700;color:#059669;">${escapeHtml(name)}</span>`;
+                }
+                if (senderIp && senderIp !== '?') {
+                    senderLabel += ` <span style="font-size:0.6rem;color:#9ca3af;font-family:monospace;">[${escapeHtml(senderIp)}]</span>`;
+                }
+            }
             
             msgDiv.innerHTML = `
                 <div class="message-bubble">
-                    <div class="message-sender">${escapeHtml(sender)}</div>
+                    <div class="message-sender">${senderLabel}</div>
                     ${contentHtml}
                 </div>
             `;
@@ -926,7 +1045,7 @@
                     try {
                         const msg = JSON.parse(e.data);
                         if (msg.type === 'chat') {
-                            addMessage(msg.sender, msg.text, msg.senderId === localPeerId, msg.image);
+                            addMessage(msg.sender, msg.text, msg.senderId === localPeerId, msg.image, false, msg.senderIp, msg.senderDeviceId, msg.senderRollNumber);
                         }
                     } catch (err) {}
                 };
@@ -1018,7 +1137,7 @@
                         try {
                             const msg = JSON.parse(e.data);
                             if (msg.type === 'chat') {
-                                addMessage(msg.sender, msg.text, false, msg.image);
+                                addMessage(msg.sender, msg.text, false, msg.image, false, msg.senderIp, msg.senderDeviceId, msg.senderRollNumber);
                             }
                         } catch (err) {}
                     };
@@ -1101,36 +1220,79 @@
         }
         
         // WebSocket functions
+        // ═══ Login Flow ═══
+        function showLoginError(msg) {
+            loginError.style.display = 'block';
+            loginError.textContent = '❌ ' + msg;
+            loginJoinBtn.disabled = false;
+            loginJoinBtn.textContent = 'Join Class  →';
+        }
+
+        function hideLoginOverlay() {
+            loginOverlay.style.opacity = '0';
+            setTimeout(() => { loginOverlay.style.display = 'none'; }, 400);
+        }
+
+        loginJoinBtn.onclick = () => {
+            const roll = loginRollInput.value.trim().toUpperCase();
+            if (!roll) {
+                showLoginError('Please enter your roll number.');
+                return;
+            }
+            localRollNumber = roll;
+            sessionStorage.setItem('rollNumber', roll);
+
+            // Sync server URL from login form to settings panel
+            const serverUrl = loginServerInput.value.trim();
+            if (serverUrl) {
+                elements.serverUrlInput.value = serverUrl;
+                localStorage.setItem('serverUrl', serverUrl);
+            }
+
+            loginError.style.display = 'none';
+            loginJoinBtn.disabled = true;
+            loginJoinBtn.textContent = 'Connecting...';
+            connect();
+        };
+
+        // Allow Enter key on roll number field
+        loginRollInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') loginJoinBtn.click();
+        });
+
         function connect() {
             let url = elements.serverUrlInput.value.trim();
             if (!url) {
-                alert('Please enter server URL');
+                showLoginError('Please enter a server URL.');
                 return;
             }
-            
+
             localStorage.setItem('serverUrl', url);
             log(`Connecting to ${url}`);
             setStatus('Connecting...');
-            
+
             if (ws) {
                 try { ws.close(); } catch(e) {}
             }
-            
+
             try {
                 ws = new WebSocket(url);
                 ws.onopen = onOpen;
                 ws.onmessage = onMessage;
-                ws.onerror = (e) => log(`WS Error: ${e}`, 'error');
+                ws.onerror = (e) => {
+                    log(`WS Error: ${e}`, 'error');
+                    if (!isRegistered) showLoginError('Connection failed. Check server URL.');
+                };
                 ws.onclose = onClose;
             } catch (err) {
                 log(`Connection failed: ${err.message}`, 'error');
                 setStatus('Failed');
+                if (!isRegistered) showLoginError('Connection failed: ' + err.message);
             }
         }
         
         function reset() {
             log('🔄 Resetting all connections...');
-            // Close all peer connections
             for (const [id, conn] of connections) {
                 try { conn.pc.close(); } catch(e) {}
             }
@@ -1138,13 +1300,14 @@
             peers.clear();
             negotiatingPeers.clear();
             renderPeers();
-            
-            // Re-register with server
-            if (ws && ws.readyState === WebSocket.OPEN) {
+
+            // Re-register with server using same roll number
+            if (ws && ws.readyState === WebSocket.OPEN && localRollNumber) {
                 ws.send(JSON.stringify({
                     type: 'register',
                     peerId: localPeerId,
-                    peerName: localPeerName
+                    rollNumber: localRollNumber,
+                    deviceId: DEVICE_ID
                 }));
             }
         }
@@ -1152,20 +1315,22 @@
         function onOpen() {
             log('WebSocket connected');
             setStatus('Connected', true);
-            
+
             localPeerId = 'peer_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
-            log(`Registering as ${localPeerName} (${localPeerId})`);
-            
+
+            if (!localRollNumber) {
+                log('⚠️ No roll number set — waiting for login', 'warn');
+                return;
+            }
+
+            log(`Registering with roll number: ${localRollNumber}`);
+
             ws.send(JSON.stringify({
                 type: 'register',
                 peerId: localPeerId,
-                peerName: localPeerName
+                rollNumber: localRollNumber,
+                deviceId: DEVICE_ID
             }));
-            
-            elements.messageInput.disabled = false;
-            elements.sendBtn.disabled = false;
-            elements.attachmentBtn.disabled = false;
-            renderPeers();
         }
         
         function onMessage(event) {
@@ -1173,12 +1338,38 @@
                 const data = JSON.parse(event.data);
                 
                 switch(data.type) {
+                    case 'register_error':
+                        log(`❌ Registration rejected: ${data.message}`, 'error');
+                        showLoginError(data.message);
+                        try { ws.close(); } catch(e) {}
+                        break;
+
                     case 'peer_list':
                         log(`Peer list: ${data.peers.length} peers`);
+
+                        // Registration succeeded!
+                        isRegistered = true;
+                        hideLoginOverlay();
+
+                        // Enable chat UI
+                        elements.messageInput.disabled = false;
+                        elements.sendBtn.disabled = false;
+                        elements.attachmentBtn.disabled = false;
+
+                        if (data.yourIp) {
+                            localIp = data.yourIp;
+                            log(`📍 Your IP: ${localIp}`);
+                        }
+                        if (data.yourName) {
+                            localPeerName = data.yourName;
+                            elements.nameInput.value = `${localPeerName} [${localIp}]`;
+                            elements.nameInput.setAttribute('title', `Roll: ${data.yourRollNumber || localRollNumber} | IP: ${localIp} | Device: ${DEVICE_ID}`);
+                            log(`🏷️ Registered as: ${localPeerName} (IP: ${localIp})`);
+                        }
                         // Only connect to peers with higher ID to avoid double connections
                         data.peers.forEach(peer => {
                             if (!peers.has(peer.peerId)) {
-                                addPeer(peer.peerId, peer.peerName);
+                                addPeer(peer.peerId, peer.peerName, peer.ip, peer.deviceId);
                                 // Only the peer with the "higher" ID initiates to avoid race
                                 if (localPeerId > peer.peerId) {
                                     setTimeout(() => initiateConnection(peer.peerId, peer.peerName), 1000);
@@ -1191,8 +1382,8 @@
                         
                     case 'peer_joined':
                         if (data.peerId !== localPeerId && !peers.has(data.peerId)) {
-                            log(`New peer joined: ${data.peerName}`);
-                            addPeer(data.peerId, data.peerName);
+                            log(`New peer joined: ${data.peerName} (IP:${data.ip || '?'})`);
+                            addPeer(data.peerId, data.peerName, data.ip, data.deviceId);
                             addSystemMessage(`${data.peerName} joined`);
                             // Only initiate if our ID is higher
                             if (localPeerId > data.peerId) {
@@ -1224,22 +1415,23 @@
                         handleIceCandidate(data.fromId, data.candidate);
                         break;
                         
-                    case 'server_chat':
-                        const conn = connections.get(data.senderId);
-                        if (conn && conn.dc && conn.dc.readyState === 'open') {
+                    case 'server_chat': {
+                        const existingConn = connections.get(data.senderId);
+                        if (existingConn && existingConn.dc && existingConn.dc.readyState === 'open') {
                             // Already received or will receive via WebRTC
                         } else {
-                            addMessage(data.senderName, data.text, false, data.image);
+                            addMessage(data.senderName, data.text, false, data.image, false, data.senderIp, data.senderDeviceId, data.senderRollNumber);
                         }
                         break;
+                    }
                 }
             } catch (err) {
                 log(`Message error: ${err.message}`, 'error');
             }
         }
         
-        function addPeer(peerId, name) {
-            peers.set(peerId, { name, status: 'connecting' });
+        function addPeer(peerId, name, ip = null, deviceId = null) {
+            peers.set(peerId, { name, status: 'connecting', ip, deviceId });
             renderPeers();
         }
         
@@ -1249,7 +1441,7 @@
             elements.messageInput.disabled = true;
             elements.sendBtn.disabled = true;
             elements.attachmentBtn.disabled = true;
-            
+
             // Clean up all connections
             for (const [id, conn] of connections) {
                 try { conn.pc.close(); } catch(e) {}
@@ -1258,27 +1450,32 @@
             peers.clear();
             renderPeers();
             negotiatingPeers.clear();
-            
-            // Auto reconnect
-            setTimeout(() => {
-                if (!ws || ws.readyState === WebSocket.CLOSED) {
-                    log('Auto-reconnecting...');
-                    connect();
-                }
-            }, 5000);
+
+            // Auto reconnect (only if we have a roll number)
+            if (localRollNumber && isRegistered) {
+                setTimeout(() => {
+                    if (!ws || ws.readyState === WebSocket.CLOSED) {
+                        log('Auto-reconnecting...');
+                        connect();
+                    }
+                }, 5000);
+            }
         }
         
         function sendChatMessage(text, imageUrl = null) {
             if (!text && !imageUrl) return;
-            
+
             const message = {
                 type: 'chat',
                 sender: localPeerName,
                 senderId: localPeerId,
+                senderRollNumber: localRollNumber,
+                senderIp: localIp,
+                senderDeviceId: DEVICE_ID,
                 text: text,
                 image: imageUrl
             };
-            
+
             let sent = 0;
             for (const [id, conn] of connections) {
                 if (conn.dc && conn.dc.readyState === 'open') {
@@ -1290,7 +1487,7 @@
                     }
                 }
             }
-            
+
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({
                     type: 'broadcast_chat',
@@ -1299,14 +1496,11 @@
                 }));
                 sent++;
             }
-            
+
             if (sent > 0) {
-                addMessage(localPeerName, text, true, imageUrl);
+                addMessage(localPeerName, text, true, imageUrl, false, localIp, DEVICE_ID, localRollNumber);
                 log(`📤 Message sent`);
-                
-                // Trigger Push Notification via Supabase Edge Function
                 triggerPushNotification(text, imageUrl);
-                
             } else {
                 log(`❌ No connected peers or server`, 'warn');
                 addSystemMessage('No connected peers or server');
@@ -1374,21 +1568,8 @@
         }
         
         function updateName() {
-            const newName = elements.nameInput.value.trim();
-            if (newName && newName !== localPeerName) {
-                localPeerName = newName;
-                localStorage.setItem('peerName', localPeerName);
-                addSystemMessage(`Name changed to ${localPeerName}`);
-                log(`Name changed to ${localPeerName}`);
-                
-                if (ws && ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({
-                        type: 'register',
-                        peerId: localPeerId,
-                        peerName: localPeerName
-                    }));
-                }
-            }
+            // Name field is now locked — this function is disabled
+            log('Name changes are disabled for accountability', 'warn');
         }
         
         // Debug console connect handler (global so inline onclick works)
@@ -1440,9 +1621,19 @@
         };
 
         // Event listeners
-        elements.connectBtn.onclick = connect;
+        // Connect button in settings panel (for manual reconnect)
+        elements.connectBtn.onclick = () => {
+            // Sync server URL to login form if overlay is visible
+            loginServerInput.value = elements.serverUrlInput.value;
+            if (!localRollNumber) {
+                // Show login overlay if no roll number
+                loginOverlay.style.display = 'flex';
+                loginOverlay.style.opacity = '1';
+                return;
+            }
+            connect();
+        };
         elements.sendBtn.onclick = sendMessage;
-        elements.updateNameBtn.onclick = updateName;
         elements.resetBtn.onclick = reset;
         elements.messageInput.onkeypress = (e) => {
             if (e.key === 'Enter') sendMessage();
@@ -1643,9 +1834,12 @@
                     elements.messagesDiv.innerHTML = '<div style="text-align: center; color: #9ca3af; padding: 40px;">✨ Send a message</div>';
                 } else {
                     chatHistory.forEach(msg => {
-                        const senderName = msg.Sender || msg.sender;
-                        const isSelf = senderName === localPeerName;
-                        addMessage(senderName, msg.text, isSelf, msg.image, true);
+                        const senderName = msg.Sender || msg.sender || 'Unknown';
+                        const senderIp   = msg.sender_ip  || null;
+                        const senderDev  = msg.device_id  || null;
+                        const senderRoll = msg.roll_number || null;
+                        // Show all with roll number + IP for teacher history
+                        addMessage(senderName, msg.text, false, msg.image, true, senderIp, senderDev, senderRoll);
                     });
                 }
                 alert(`✅ Successfully pulled ${chatHistory.length} messages from Supabase!`);

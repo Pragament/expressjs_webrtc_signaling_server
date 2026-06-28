@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Faculty Admin Dashboard · Class Chat</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg: #0f1117;
+            --surface: #1a1d27;
+            --surface2: #22263a;
+            --border: #2d3148;
+            --accent: #6366f1;
+            --accent2: #8b5cf6;
+            --green: #10b981;
+            --red: #ef4444;
+            --yellow: #f59e0b;
+            --text: #e2e8f0;
+            --muted: #64748b;
+            --mono: 'JetBrains Mono', monospace;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        /* ── PIN Gate ── */
+        #pinGate {
+            position: fixed; inset: 0;
+            background: linear-gradient(135deg, #1a1d27 0%, #0f1117 100%);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 9999;
+        }
+        #pinGate .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 44px 40px;
+            width: 92%; max-width: 380px;
+            text-align: center;
+            box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+        }
+        #pinGate .icon { font-size: 2.8rem; margin-bottom: 12px; }
+        #pinGate h2 { font-size: 1.35rem; margin-bottom: 6px; color: var(--text); }
+        #pinGate p { color: var(--muted); font-size: 0.82rem; margin-bottom: 28px; }
+        #pinInput {
+            width: 100%; padding: 13px 16px;
+            border: 2px solid var(--border); border-radius: 12px;
+            background: var(--bg); color: var(--text);
+            font-size: 1.2rem; letter-spacing: 0.3em; text-align: center;
+            font-family: var(--mono); margin-bottom: 14px;
+            transition: border-color 0.2s;
+        }
+        #pinInput:focus { outline: none; border-color: var(--accent); }
+        #pinError { color: var(--red); font-size: 0.8rem; margin-bottom: 14px; min-height: 18px; }
+        .btn-primary {
+            width: 100%; padding: 13px;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            color: white; font-size: 0.95rem; font-weight: 700;
+            border: none; border-radius: 12px; cursor: pointer;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+        .btn-primary:hover { opacity: 0.9; }
+        .btn-primary:active { transform: scale(0.97); }
+
+        /* ── App Shell ── */
+        #app { display: none; }
+
+        header {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 0 28px;
+            height: 60px;
+            display: flex; align-items: center; justify-content: space-between;
+            position: sticky; top: 0; z-index: 100;
+        }
+        .header-brand { display: flex; align-items: center; gap: 10px; }
+        .header-brand .logo { font-size: 1.4rem; }
+        .header-brand h1 { font-size: 1rem; font-weight: 700; }
+        .header-brand span { font-size: 0.72rem; color: var(--accent); font-weight: 600;
+            background: rgba(99,102,241,0.15); padding: 2px 8px; border-radius: 20px; }
+
+        .header-actions { display: flex; align-items: center; gap: 10px; }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green);
+            box-shadow: 0 0 6px var(--green); animation: pulse 2s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+        #serverUrlDisplay { font-size: 0.75rem; color: var(--muted); font-family: var(--mono); }
+
+        /* ── Layout ── */
+        .main { display: grid; grid-template-columns: 300px 1fr; gap: 0; height: calc(100vh - 60px); overflow: hidden; }
+
+        /* ── Sidebar ── */
+        .sidebar {
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+            overflow-y: auto;
+            display: flex; flex-direction: column;
+        }
+        .sidebar-section { padding: 16px; border-bottom: 1px solid var(--border); }
+        .sidebar-section h3 { font-size: 0.7rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; }
+
+        /* Server URL input */
+        .url-row { display: flex; gap: 6px; }
+        .url-row input {
+            flex: 1; padding: 8px 10px;
+            background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+            color: var(--text); font-size: 0.78rem; font-family: var(--mono);
+        }
+        .url-row input:focus { outline: none; border-color: var(--accent); }
+        .btn-sm {
+            padding: 8px 12px; border-radius: 8px; border: none; cursor: pointer;
+            font-size: 0.75rem; font-weight: 600; transition: opacity 0.2s;
+        }
+        .btn-connect { background: var(--accent); color: white; }
+        .btn-connect:hover { opacity: 0.85; }
+
+        /* Student list */
+        #studentList { display: flex; flex-direction: column; gap: 6px; }
+        .student-card {
+            background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+            padding: 10px 12px; transition: border-color 0.2s;
+        }
+        .student-card:hover { border-color: var(--accent); }
+        .student-roll { font-family: var(--mono); font-size: 0.82rem; font-weight: 700; color: var(--green); }
+        .student-name { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+        .student-ip { font-family: var(--mono); font-size: 0.65rem; color: var(--muted); margin-top: 4px; }
+        .student-time { font-size: 0.62rem; color: var(--muted); margin-top: 2px; }
+
+        #studentCount { font-size: 0.75rem; color: var(--muted); margin-bottom: 10px; }
+        .badge { display: inline-block; padding: 1px 7px; border-radius: 20px; font-size: 0.68rem; font-weight: 700; }
+        .badge-green { background: rgba(16,185,129,0.15); color: var(--green); }
+        .badge-yellow { background: rgba(245,158,11,0.15); color: var(--yellow); }
+
+        /* Auto-refresh toggle */
+        .refresh-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+        .toggle-switch { position: relative; width: 36px; height: 20px; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider {
+            position: absolute; inset: 0; background: var(--border); border-radius: 20px; cursor: pointer;
+            transition: 0.3s;
+        }
+        .toggle-slider::before {
+            content: ''; position: absolute; height: 14px; width: 14px; left: 3px; bottom: 3px;
+            background: white; border-radius: 50%; transition: 0.3s;
+        }
+        .toggle-switch input:checked + .toggle-slider { background: var(--accent); }
+        .toggle-switch input:checked + .toggle-slider::before { transform: translateX(16px); }
+
+        /* ── Main content ── */
+        .content {
+            overflow-y: auto;
+            display: flex; flex-direction: column;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 0 24px;
+            position: sticky; top: 0; z-index: 50;
+        }
+        .tab-btn {
+            padding: 16px 20px;
+            background: none; border: none; cursor: pointer;
+            font-size: 0.82rem; font-weight: 600; color: var(--muted);
+            border-bottom: 2px solid transparent;
+            transition: color 0.2s, border-color 0.2s;
+        }
+        .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+        .tab-btn:hover { color: var(--text); }
+
+        .tab-panel { display: none; padding: 24px; flex: 1; }
+        .tab-panel.active { display: block; }
+
+        /* ── Chat Monitor ── */
+        #chatMonitor {
+            display: flex; flex-direction: column; gap: 10px;
+        }
+        .chat-msg {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px 16px;
+            display: grid; grid-template-columns: 110px 1fr auto; gap: 12px; align-items: start;
+            transition: border-color 0.2s;
+            animation: slideIn 0.3s ease;
+        }
+        @keyframes slideIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
+        .chat-msg:hover { border-color: var(--accent); }
+        .msg-roll { font-family: var(--mono); font-size: 0.8rem; font-weight: 700; color: var(--green); }
+        .msg-ip { font-family: var(--mono); font-size: 0.65rem; color: var(--muted); margin-top: 3px; }
+        .msg-text { font-size: 0.85rem; color: var(--text); word-break: break-word; }
+        .msg-img-badge { font-size: 0.7rem; color: var(--yellow); background: rgba(245,158,11,0.1); padding: 2px 8px; border-radius: 8px; }
+        .msg-time { font-size: 0.65rem; color: var(--muted); font-family: var(--mono); white-space: nowrap; }
+
+        .empty-state { text-align: center; padding: 60px 20px; color: var(--muted); }
+        .empty-state .icon { font-size: 3rem; margin-bottom: 12px; }
+        .empty-state p { font-size: 0.85rem; }
+
+        /* ── Toolbar above chat ── */
+        .monitor-toolbar {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 16px; gap: 12px; flex-wrap: wrap;
+        }
+        .monitor-toolbar h2 { font-size: 0.9rem; font-weight: 700; }
+        .toolbar-right { display: flex; align-items: center; gap: 8px; }
+        .btn-outline {
+            padding: 6px 14px; border-radius: 8px; font-size: 0.75rem; font-weight: 600;
+            border: 1px solid var(--border); background: none; color: var(--text);
+            cursor: pointer; transition: border-color 0.2s, background 0.2s;
+        }
+        .btn-outline:hover { border-color: var(--accent); background: rgba(99,102,241,0.08); }
+        #msgCount { font-size: 0.75rem; color: var(--muted); }
+
+        /* ── CSV Upload ── */
+        .csv-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+        .csv-card h3 { font-size: 0.9rem; font-weight: 700; margin-bottom: 6px; }
+        .csv-card p { font-size: 0.8rem; color: var(--muted); margin-bottom: 18px; line-height: 1.6; }
+
+        .drop-zone {
+            border: 2px dashed var(--border);
+            border-radius: 12px;
+            padding: 36px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.2s, background 0.2s;
+            margin-bottom: 16px;
+        }
+        .drop-zone:hover, .drop-zone.drag-over {
+            border-color: var(--accent);
+            background: rgba(99,102,241,0.05);
+        }
+        .drop-zone .dz-icon { font-size: 2.2rem; margin-bottom: 8px; }
+        .drop-zone p { font-size: 0.82rem; color: var(--muted); }
+        .drop-zone strong { color: var(--accent); cursor: pointer; }
+
+        #csvFileInput { display: none; }
+
+        .csv-options { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+        .csv-options label { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--muted); cursor: pointer; }
+        .csv-options input[type=checkbox] { accent-color: var(--accent); width: 15px; height: 15px; }
+
+        #csvPreview {
+            background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+            padding: 12px 14px; font-family: var(--mono); font-size: 0.75rem; color: var(--muted);
+            max-height: 200px; overflow-y: auto; margin-bottom: 16px; display: none;
+        }
+        #csvPreview .preview-row { padding: 3px 0; border-bottom: 1px solid var(--border); display: flex; gap: 16px; }
+        #csvPreview .preview-row:last-child { border-bottom: none; }
+        #csvPreview .pr-roll { color: var(--green); font-weight: 700; min-width: 90px; }
+        #csvPreview .pr-name { color: var(--text); }
+
+        .upload-result {
+            padding: 12px 14px; border-radius: 10px; font-size: 0.82rem; margin-bottom: 16px; display: none;
+        }
+        .upload-result.success { background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3); color: var(--green); }
+        .upload-result.error { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: var(--red); }
+
+        /* Current classlist table */
+        .class-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+        .class-table th { padding: 10px 14px; text-align: left; font-size: 0.7rem; font-weight: 700;
+            color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em;
+            border-bottom: 1px solid var(--border); }
+        .class-table td { padding: 10px 14px; border-bottom: 1px solid var(--border); }
+        .class-table tr:last-child td { border-bottom: none; }
+        .class-table tr:hover td { background: var(--surface2); }
+        .roll-cell { font-family: var(--mono); font-weight: 700; color: var(--green); }
+        .online-indicator { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; }
+        .online-indicator.online { background: var(--green); box-shadow: 0 0 5px var(--green); }
+        .online-indicator.offline { background: var(--muted); }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+        @media (max-width: 768px) {
+            .main { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+            .sidebar { max-height: 220px; overflow-y: auto; border-right: none; border-bottom: 1px solid var(--border); }
+        }
+    </style>
+</head>
+<body>
+
+<!-- PIN Gate -->
+<div id="pinGate">
+    <div class="card">
+        <div class="icon">🔐</div>
+        <h2>Faculty Admin</h2>
+        <p>Enter your PIN to access the dashboard</p>
+        <input type="password" id="pinInput" maxlength="8" placeholder="● ● ● ●" autocomplete="off">
+        <div id="pinError"></div>
+        <button class="btn-primary" id="pinSubmit">Unlock Dashboard</button>
+        <p style="margin-top:16px;font-size:0.68rem;color:var(--muted);">Default PIN: 1234</p>
+    </div>
+</div>
+
+<div id="app">
+    <header>
+        <div class="header-brand">
+            <span class="logo">📊</span>
+            <h1>Faculty Admin</h1>
+            <span>LIVE</span>
+        </div>
+        <div class="header-actions">
+            <div class="status-dot" id="statusDot" style="background:var(--muted);box-shadow:none;"></div>
+            <span id="serverUrlDisplay">Not connected</span>
+        </div>
+    </header>
+
+    <div class="main">
+        <!-- Sidebar: Live Students -->
+        <aside class="sidebar">
+            <div class="sidebar-section">
+                <h3>Server URL</h3>
+                <div class="url-row">
+                    <input type="text" id="serverUrlInput" placeholder="http://localhost:3000">
+                    <button class="btn-sm btn-connect" id="connectBtn">Connect</button>
+                </div>
+            </div>
+            <div class="sidebar-section" style="flex:1;">
+                <div class="refresh-row">
+                    <h3 style="margin:0;">Online Students</h3>
+                    <label class="toggle-switch" title="Auto-refresh every 5s">
+                        <input type="checkbox" id="autoRefreshToggle" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div id="studentCount" class="badge badge-green">0 online</div>
+                <div id="studentList">
+                    <div class="empty-state" style="padding:20px 0;">
+                        <div class="icon">📡</div>
+                        <p style="font-size:0.75rem;">Connect to see students</p>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main content -->
+        <div class="content">
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="chatTab">💬 Live Chat</button>
+                <button class="tab-btn" data-tab="classlistTab">📋 Class List</button>
+                <button class="tab-btn" data-tab="uploadTab">⬆️ Upload CSV</button>
+            </div>
+
+            <!-- Chat Monitor Tab -->
+            <div class="tab-panel active" id="chatTab">
+                <div class="monitor-toolbar">
+                    <h2>📨 Ongoing Chat Monitor</h2>
+                    <div class="toolbar-right">
+                        <span id="msgCount">0 messages</span>
+                        <button class="btn-outline" id="exportChatBtn">⬇️ Export</button>
+                        <button class="btn-outline" id="clearChatBtn">🗑 Clear view</button>
+                    </div>
+                </div>
+                <div id="chatMonitor">
+                    <div class="empty-state">
+                        <div class="icon">💬</div>
+                        <p>No messages yet.<br>Messages appear here as students chat.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Class List Tab -->
+            <div class="tab-panel" id="classlistTab">
+                <div class="monitor-toolbar">
+                    <h2>📋 Current Class List</h2>
+                    <div class="toolbar-right">
+                        <span id="strictBadge" class="badge badge-yellow">Open mode</span>
+                        <button class="btn-outline" id="refreshClasslistBtn">🔄 Refresh</button>
+                    </div>
+                </div>
+                <div class="csv-card" style="padding: 0; overflow: hidden;">
+                    <table class="class-table" id="classTable">
+                        <thead>
+                            <tr>
+                                <th>Roll No</th>
+                                <th>Name</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="classTableBody">
+                            <tr><td colspan="3" style="text-align:center;color:var(--muted);padding:40px;">Connect to server to see class list</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Upload Tab -->
+            <div class="tab-panel" id="uploadTab">
+                <div class="csv-card">
+                    <h3>⬆️ Upload Class List (CSV)</h3>
+                    <p>
+                        Upload a CSV file with your class roll numbers and names.<br>
+                        Format: <code style="background:var(--bg);padding:1px 6px;border-radius:4px;font-family:var(--mono);font-size:0.8rem;">RollNo,StudentName</code>
+                        (header row is auto-detected and skipped).<br>
+                        The server updates instantly — <strong>no restart needed</strong>.
+                    </p>
+
+                    <!-- Drop zone -->
+                    <div class="drop-zone" id="dropZone">
+                        <div class="dz-icon">📄</div>
+                        <p>Drop your CSV file here<br>or <strong onclick="document.getElementById('csvFileInput').click()">browse to upload</strong></p>
+                    </div>
+                    <input type="file" id="csvFileInput" accept=".csv,.txt">
+
+                    <!-- Options -->
+                    <div class="csv-options">
+                        <label>
+                            <input type="checkbox" id="strictModeCheck" checked>
+                            Strict mode (only listed roll numbers can join)
+                        </label>
+                    </div>
+
+                    <!-- Preview -->
+                    <div id="csvPreview"></div>
+
+                    <!-- Result -->
+                    <div class="upload-result" id="uploadResult"></div>
+
+                    <!-- Upload button -->
+                    <button class="btn-primary" id="uploadBtn" style="max-width:220px;" disabled>
+                        ⬆️ Upload to Server
+                    </button>
+                </div>
+
+                <!-- Sample CSV download -->
+                <div class="csv-card">
+                    <h3>📥 Download Sample CSV</h3>
+                    <p style="margin-bottom:14px;">Use this template to create your class list.</p>
+                    <button class="btn-outline" id="downloadSampleBtn">⬇️ Download sample.csv</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ── PIN Gate ──
+    const ADMIN_PIN = '1234';
+    let serverBase = '';
+    let parsedCsvData = null;
+    let autoRefreshInterval = null;
+    let knownMsgCount = 0;
+
+    document.getElementById('pinSubmit').onclick = checkPin;
+    document.getElementById('pinInput').addEventListener('keypress', e => { if (e.key === 'Enter') checkPin(); });
+
+    function checkPin() {
+        const pin = document.getElementById('pinInput').value.trim();
+        if (pin === ADMIN_PIN) {
+            document.getElementById('pinGate').style.opacity = '0';
+            setTimeout(() => {
+                document.getElementById('pinGate').style.display = 'none';
+                document.getElementById('app').style.display = 'block';
+                initApp();
+            }, 300);
+        } else {
+            document.getElementById('pinError').textContent = '❌ Wrong PIN. Try again.';
+            document.getElementById('pinInput').value = '';
+            document.getElementById('pinInput').focus();
+        }
+    }
+
+    function initApp() {
+        const saved = localStorage.getItem('adminServerUrl');
+        // If opened directly as a file (file://), default to localhost:3000
+        const isFileProtocol = window.location.protocol === 'file:';
+        const defaultUrl = isFileProtocol ? 'http://localhost:3000'
+            : (window.location.origin || 'http://localhost:3000');
+        const url = saved || defaultUrl;
+        document.getElementById('serverUrlInput').value = url;
+        connectToServer(url);
+        setupTabs();
+        setupUpload();
+        setupAutoRefresh();
+
+        document.getElementById('connectBtn').onclick = () => {
+            const u = document.getElementById('serverUrlInput').value.trim();
+            connectToServer(u);
+        };
+        document.getElementById('serverUrlInput').addEventListener('keypress', e => {
+            if (e.key === 'Enter') document.getElementById('connectBtn').click();
+        });
+    }
+
+    function connectToServer(url) {
+        serverBase = url.replace(/\/$/, '');
+        localStorage.setItem('adminServerUrl', serverBase);
+        document.getElementById('serverUrlDisplay').textContent = serverBase;
+        refreshAll();
+    }
+
+    // ── Tabs ──
+    function setupTabs() {
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.onclick = () => {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById(btn.dataset.tab).classList.add('active');
+                if (btn.dataset.tab === 'classlistTab') refreshClasslist();
+            };
+        });
+        document.getElementById('refreshClasslistBtn').onclick = refreshClasslist;
+    }
+
+    // ── Auto-refresh ──
+    function setupAutoRefresh() {
+        const toggle = document.getElementById('autoRefreshToggle');
+        function startRefresh() {
+            stopRefresh();
+            autoRefreshInterval = setInterval(refreshAll, 5000);
+        }
+        function stopRefresh() {
+            if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+        }
+        toggle.onchange = () => toggle.checked ? startRefresh() : stopRefresh();
+        startRefresh();
+    }
+
+    async function refreshAll() {
+        await Promise.all([ refreshStudents(), refreshChats() ]);
+    }
+
+    // ── Students ──
+    async function refreshStudents() {
+        try {
+            const r = await fetch(`${serverBase}/admin/students`);
+            if (!r.ok) throw new Error(r.statusText);
+            const data = await r.json();
+
+            const dot = document.getElementById('statusDot');
+            dot.style.background = 'var(--green)';
+            dot.style.boxShadow = '0 0 6px var(--green)';
+
+            const countEl = document.getElementById('studentCount');
+            countEl.textContent = `${data.total} online`;
+            countEl.className = 'badge ' + (data.total > 0 ? 'badge-green' : 'badge-yellow');
+
+            const list = document.getElementById('studentList');
+            if (data.students.length === 0) {
+                list.innerHTML = '<div style="text-align:center;padding:20px 0;color:var(--muted);font-size:0.78rem;">No students online</div>';
+                return;
+            }
+            list.innerHTML = data.students.map(s => `
+                <div class="student-card">
+                    <div class="student-roll">${esc(s.rollNumber || '?')}</div>
+                    ${s.name && s.name !== s.rollNumber ? `<div class="student-name">${esc(s.name)}</div>` : ''}
+                    <div class="student-ip">${esc(s.ip)}</div>
+                    <div class="student-time">Since ${formatTime(s.connectedAt)}</div>
+                </div>
+            `).join('');
+        } catch (err) {
+            const dot = document.getElementById('statusDot');
+            dot.style.background = 'var(--red)';
+            dot.style.boxShadow = 'none';
+            document.getElementById('serverUrlDisplay').textContent = 'Connection failed';
+        }
+    }
+
+    // ── Chat Monitor ──
+    async function refreshChats() {
+        try {
+            const r = await fetch(`${serverBase}/admin/chats`);
+            if (!r.ok) throw new Error(r.statusText);
+            const data = await r.json();
+
+            document.getElementById('msgCount').textContent = `${data.total} messages`;
+
+            const monitor = document.getElementById('chatMonitor');
+            if (data.messages.length === 0) {
+                if (knownMsgCount === 0) {
+                    monitor.innerHTML = `<div class="empty-state"><div class="icon">💬</div><p>No messages yet.<br>Messages appear here as students chat.</p></div>`;
+                }
+                return;
+            }
+
+            // Re-render only if count changed
+            if (data.messages.length !== knownMsgCount) {
+                knownMsgCount = data.messages.length;
+                monitor.innerHTML = [...data.messages].reverse().map(m => `
+                    <div class="chat-msg">
+                        <div>
+                            <div class="msg-roll">${esc(m.rollNumber || '?')}</div>
+                            <div class="msg-ip">${esc(m.ip || '')}</div>
+                        </div>
+                        <div class="msg-text">
+                            ${m.text ? esc(m.text) : ''}
+                            ${m.hasImage ? '<span class="msg-img-badge">📷 Image</span>' : ''}
+                        </div>
+                        <div class="msg-time">${formatTime(m.time)}</div>
+                    </div>
+                `).join('');
+            }
+        } catch (err) {
+            // silently fail — connection error already shown by refreshStudents
+        }
+    }
+
+    // ── Class List ──
+    async function refreshClasslist() {
+        try {
+            const [clR, stR] = await Promise.all([
+                fetch(`${serverBase}/admin/classlist`),
+                fetch(`${serverBase}/admin/students`)
+            ]);
+            const cl = await clR.json();
+            const st = await stR.json();
+
+            const onlineRolls = new Set((st.students || []).map(s => s.rollNumber));
+
+            document.getElementById('strictBadge').textContent = cl.validateAgainstList ? '🔒 Strict mode' : '🔓 Open mode';
+            document.getElementById('strictBadge').className = 'badge ' + (cl.validateAgainstList ? 'badge-yellow' : 'badge-green');
+
+            const tbody = document.getElementById('classTableBody');
+            const students = cl.students || [];
+            if (students.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:30px;">No class list uploaded yet</td></tr>';
+                return;
+            }
+            tbody.innerHTML = students.map(s => {
+                const online = onlineRolls.has(s.rollNo);
+                return `<tr>
+                    <td class="roll-cell">${esc(s.rollNo)}</td>
+                    <td>${esc(s.name || '—')}</td>
+                    <td><span class="online-indicator ${online ? 'online' : 'offline'}"></span>${online ? 'Online' : 'Offline'}</td>
+                </tr>`;
+            }).join('');
+        } catch (err) {
+            document.getElementById('classTableBody').innerHTML =
+                '<tr><td colspan="3" style="text-align:center;color:var(--red);padding:20px;">Failed to load class list</td></tr>';
+        }
+    }
+
+    // ── CSV Upload ──
+    function setupUpload() {
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('csvFileInput');
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+        dropZone.addEventListener('drop', e => {
+            e.preventDefault(); dropZone.classList.remove('drag-over');
+            const file = e.dataTransfer.files[0];
+            if (file) readCsvFile(file);
+        });
+        fileInput.onchange = () => { if (fileInput.files[0]) readCsvFile(fileInput.files[0]); };
+
+        document.getElementById('uploadBtn').onclick = uploadCsv;
+
+        document.getElementById('exportChatBtn').onclick = exportChat;
+        document.getElementById('clearChatBtn').onclick = () => {
+            document.getElementById('chatMonitor').innerHTML =
+                `<div class="empty-state"><div class="icon">💬</div><p>View cleared. New messages will appear automatically.</p></div>`;
+            knownMsgCount = -1; // force refresh on next poll
+        };
+
+        document.getElementById('downloadSampleBtn').onclick = () => {
+            const csv = 'RollNo,Name\n21CS001,Rahul Kumar\n21CS002,Priya Sharma\n21CS003,Amit Patel\n21CS004,Sneha Reddy\n';
+            downloadFile('sample_classlist.csv', csv, 'text/csv');
+        };
+    }
+
+    function readCsvFile(file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const csv = e.target.result;
+            const rows = parseCsv(csv);
+            parsedCsvData = { csv, rows };
+            showCsvPreview(rows);
+            document.getElementById('uploadBtn').disabled = false;
+            document.getElementById('uploadResult').style.display = 'none';
+        };
+        reader.readAsText(file);
+    }
+
+    function parseCsv(csvText) {
+        const lines = csvText.trim().split(/\r?\n/);
+        // Auto-detect delimiter: tab or comma
+        const firstLine = lines[0] || '';
+        const delimiter = firstLine.includes('\t') ? '\t' : ',';
+
+        const HEADER_VARIANTS = [
+            'ROLLNO','ROLL NO','ROLL_NO','ROLL NUMBER','ROLLNUMBER',
+            'ROLL','S.NO','SR NO','SR.NO','SNO'
+        ];
+        const rows = [];
+        for (const line of lines) {
+            if (!line.trim()) continue;
+            const parts = line.split(delimiter).map(s => s.trim().replace(/^"|"$/g, ''));
+            if (!parts[0]) continue;
+            const roll = parts[0].toUpperCase().trim();
+            // Skip header row
+            if (HEADER_VARIANTS.includes(roll)) continue;
+            rows.push({ rollNo: roll, name: parts[1] || '' });
+        }
+        return rows;
+    }
+
+    function showCsvPreview(rows) {
+        const preview = document.getElementById('csvPreview');
+        if (rows.length === 0) { preview.style.display = 'none'; return; }
+        preview.style.display = 'block';
+        preview.innerHTML = `<div style="color:var(--muted);margin-bottom:8px;font-size:0.7rem;">${rows.length} students found:</div>` +
+            rows.slice(0, 20).map(r =>
+                `<div class="preview-row"><span class="pr-roll">${esc(r.rollNo)}</span><span class="pr-name">${esc(r.name)}</span></div>`
+            ).join('') +
+            (rows.length > 20 ? `<div style="color:var(--muted);padding-top:6px;">...and ${rows.length - 20} more</div>` : '');
+    }
+
+    async function uploadCsv() {
+        if (!parsedCsvData) return;
+        const strict = document.getElementById('strictModeCheck').checked;
+        const resultEl = document.getElementById('uploadResult');
+        const btn = document.getElementById('uploadBtn');
+
+        btn.disabled = true;
+        btn.textContent = 'Uploading...';
+        resultEl.style.display = 'none';
+
+        try {
+            const r = await fetch(`${serverBase}/admin/upload-classlist`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ csv: parsedCsvData.csv, validateAgainstList: strict })
+            });
+            const data = await r.json();
+            if (!r.ok || !data.success) throw new Error(data.error || 'Upload failed');
+
+            resultEl.className = 'upload-result success';
+            resultEl.textContent = `✅ Uploaded ${data.count} students successfully! Server updated instantly.`;
+            resultEl.style.display = 'block';
+            parsedCsvData = null;
+            document.getElementById('csvPreview').style.display = 'none';
+        } catch (err) {
+            resultEl.className = 'upload-result error';
+            resultEl.textContent = `❌ ${err.message}`;
+            resultEl.style.display = 'block';
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '⬆️ Upload to Server';
+        }
+    }
+
+    function exportChat() {
+        fetch(`${serverBase}/admin/chats`).then(r => r.json()).then(data => {
+            if (!data.messages || data.messages.length === 0) { alert('No messages to export.'); return; }
+            const header = 'Time,RollNumber,Name,IP,Message,HasImage\n';
+            const rows = data.messages.map(m =>
+                `"${m.time}","${m.rollNumber || ''}","${m.name || ''}","${m.ip || ''}","${(m.text || '').replace(/"/g, '""')}","${m.hasImage}"`
+            ).join('\n');
+            downloadFile(`chat_export_${new Date().toISOString().slice(0,19)}.csv`, header + rows, 'text/csv');
+        }).catch(() => alert('Failed to fetch chat log.'));
+    }
+
+    // ── Utils ──
+    function esc(str) {
+        return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function formatTime(iso) {
+        if (!iso) return '';
+        const d = new Date(iso);
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+
+    function downloadFile(name, content, type) {
+        const blob = new Blob([content], { type });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = name;
+        a.click();
+    }
+</script>
+</body>
+</html>
