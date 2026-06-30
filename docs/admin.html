@@ -293,19 +293,62 @@
             .sidebar { max-height: 220px; overflow-y: auto; border-right: none; border-bottom: 1px solid var(--border); }
         }
     </style>
+    
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+      import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+      const firebaseConfig = {
+        apiKey: "AIzaSyBdBeHPwiPDvvhYaMm3Q2y6ueOeJ3_Sai8",
+        authDomain: "webrtc-67d20.firebaseapp.com",
+        projectId: "webrtc-67d20",
+        storageBucket: "webrtc-67d20.firebasestorage.app",
+        messagingSenderId: "699035230152",
+        appId: "1:699035230152:web:31405b3b2dab4672e72afd",
+        measurementId: "G-VCPBSTHSEM"
+      };
+
+      // Initialize Firebase only if config is provided to avoid crashing
+      if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
+          const app = initializeApp(firebaseConfig);
+          const auth = getAuth(app);
+          const provider = new GoogleAuthProvider();
+
+          window.firebaseAuth = auth;
+          window.signInWithGoogle = () => signInWithPopup(auth, provider);
+          window.signOutFirebase = () => signOut(auth);
+          window.onAuthStateChangedWrapper = (cb) => onAuthStateChanged(auth, cb);
+      } else {
+          console.warn("Firebase not configured. Please add your config.");
+          // Mock auth for development without config
+          window.signInWithGoogle = async () => ({ user: { displayName: "Demo Teacher" } });
+          window.signOutFirebase = async () => {};
+          window.onAuthStateChangedWrapper = (cb) => {}; 
+      }
+    </script>
 </head>
 <body>
 
-<!-- PIN Gate -->
+<!-- Firebase Auth & Class Gate -->
 <div id="pinGate">
-    <div class="card">
+    <div class="card" id="authCard">
         <div class="icon">🔐</div>
         <h2>Faculty Admin</h2>
-        <p>Enter your PIN to access the dashboard</p>
-        <input type="password" id="pinInput" maxlength="8" placeholder="● ● ● ●" autocomplete="off">
+        <p>Sign in with Google to manage your class</p>
         <div id="pinError"></div>
-        <button class="btn-primary" id="pinSubmit">Unlock Dashboard</button>
-        <p style="margin-top:16px;font-size:0.68rem;color:var(--muted);">Default PIN: 1234</p>
+        <button class="btn-primary" id="googleLoginBtn" style="background: white; color: #444; border: 1px solid #ddd; display: flex; align-items: center; justify-content: center; gap: 8px;">
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" style="width:18px;">
+            Sign in with Google
+        </button>
+    </div>
+    
+    <div class="card" id="classCodeCard" style="display:none;">
+        <div class="icon">🏫</div>
+        <h2>Class Setup</h2>
+        <p>Enter the class code to create or manage</p>
+        <input type="text" id="adminClassCodeInput" placeholder="e.g. CS101" style="width: 100%; padding: 13px 16px; border: 2px solid var(--border); border-radius: 12px; background: var(--bg); color: var(--text); font-size: 1.2rem; text-align: center; font-family: var(--mono); margin-bottom: 14px; text-transform: uppercase;">
+        <div id="classError" style="color: var(--red); font-size: 0.8rem; margin-bottom: 14px; min-height: 18px;"></div>
+        <button class="btn-primary" id="enterClassBtn">Manage Class</button>
     </div>
 </div>
 
@@ -314,9 +357,10 @@
         <div class="header-brand">
             <span class="logo">📊</span>
             <h1>Faculty Admin</h1>
-            <span>LIVE</span>
+            <span id="headerClassBadge" style="margin-left: 8px; font-size: 0.85rem; padding: 4px 10px; background: rgba(16,185,129,0.15); color: var(--green); border-radius: 8px; font-family: var(--mono); font-weight: bold; display: none;"></span>
         </div>
         <div class="header-actions">
+            <button id="adminLogoutBtn" class="btn-sm" style="background: var(--surface2); color: var(--text); border: 1px solid var(--border); margin-right: 10px;">Logout</button>
             <div class="status-dot" id="statusDot" style="background:var(--muted);box-shadow:none;"></div>
             <span id="serverUrlDisplay">Not connected</span>
         </div>
@@ -451,19 +495,35 @@
 </div>
 
 <script>
-    // ── PIN Gate ──
-    const ADMIN_PIN = '1234';
+    // ── Auth & Class Setup ──
     let serverBase = '';
     let parsedCsvData = null;
     let autoRefreshInterval = null;
     let knownMsgCount = 0;
+    let adminClassCode = '';
 
-    document.getElementById('pinSubmit').onclick = checkPin;
-    document.getElementById('pinInput').addEventListener('keypress', e => { if (e.key === 'Enter') checkPin(); });
+    document.getElementById('googleLoginBtn').onclick = async () => {
+        try {
+            const result = await window.signInWithGoogle();
+            const user = result.user || result; // mock fallback
+            console.log("Logged in as", user.displayName);
+            document.getElementById('authCard').style.display = 'none';
+            document.getElementById('classCodeCard').style.display = 'block';
+        } catch (error) {
+            document.getElementById('pinError').textContent = '❌ Login failed: ' + error.message;
+        }
+    };
 
-    function checkPin() {
-        const pin = document.getElementById('pinInput').value.trim();
-        if (pin === ADMIN_PIN) {
+    document.getElementById('enterClassBtn').onclick = checkClassCode;
+    document.getElementById('adminClassCodeInput').addEventListener('keypress', e => { if (e.key === 'Enter') checkClassCode(); });
+
+    function checkClassCode() {
+        const code = document.getElementById('adminClassCodeInput').value.trim().toUpperCase();
+        if (code) {
+            adminClassCode = code;
+            document.getElementById('headerClassBadge').textContent = 'Class: ' + adminClassCode;
+            document.getElementById('headerClassBadge').style.display = 'inline-block';
+            
             document.getElementById('pinGate').style.opacity = '0';
             setTimeout(() => {
                 document.getElementById('pinGate').style.display = 'none';
@@ -471,19 +531,33 @@
                 initApp();
             }, 300);
         } else {
-            document.getElementById('pinError').textContent = '❌ Wrong PIN. Try again.';
-            document.getElementById('pinInput').value = '';
-            document.getElementById('pinInput').focus();
+            document.getElementById('classError').textContent = '❌ Please enter a class code.';
         }
     }
 
+    document.getElementById('adminLogoutBtn').onclick = async () => {
+        try {
+            await window.signOutFirebase();
+        } catch(e) {}
+        location.reload();
+    };
+
+    window.addEventListener('load', () => {
+        if (window.onAuthStateChangedWrapper) {
+            window.onAuthStateChangedWrapper((user) => {
+                if (user) {
+                    document.getElementById('authCard').style.display = 'none';
+                    document.getElementById('classCodeCard').style.display = 'block';
+                }
+            });
+        }
+    });
+
     function initApp() {
-        const saved = localStorage.getItem('adminServerUrl');
         // If opened directly as a file (file://), default to localhost:3000
         const isFileProtocol = window.location.protocol === 'file:';
-        const defaultUrl = isFileProtocol ? 'http://localhost:3000'
+        const url = isFileProtocol ? 'http://localhost:3000'
             : (window.location.origin || 'http://localhost:3000');
-        const url = saved || defaultUrl;
         document.getElementById('serverUrlInput').value = url;
         connectToServer(url);
         setupTabs();
@@ -541,7 +615,7 @@
     // ── Students ──
     async function refreshStudents() {
         try {
-            const r = await fetch(`${serverBase}/admin/students`);
+            const r = await fetch(`${serverBase}/admin/students?classCode=${encodeURIComponent(adminClassCode)}`);
             if (!r.ok) throw new Error(r.statusText);
             const data = await r.json();
 
@@ -577,7 +651,7 @@
     // ── Chat Monitor ──
     async function refreshChats() {
         try {
-            const r = await fetch(`${serverBase}/admin/chats`);
+            const r = await fetch(`${serverBase}/admin/chats?classCode=${encodeURIComponent(adminClassCode)}`);
             if (!r.ok) throw new Error(r.statusText);
             const data = await r.json();
 
@@ -602,7 +676,7 @@
                         </div>
                         <div class="msg-text">
                             ${m.text ? esc(m.text) : ''}
-                            ${m.hasImage ? '<span class="msg-img-badge">📷 Image</span>' : ''}
+                            ${m.image ? `<br><img src="${m.image}" style="max-width: 200px; max-height: 200px; border-radius: 8px; margin-top: 6px; cursor: pointer;" onclick="window.open(this.src)">` : (m.hasImage ? '<span class="msg-img-badge">📷 Image</span>' : '')}
                         </div>
                         <div class="msg-time">${formatTime(m.time)}</div>
                     </div>
@@ -617,8 +691,8 @@
     async function refreshClasslist() {
         try {
             const [clR, stR] = await Promise.all([
-                fetch(`${serverBase}/admin/classlist`),
-                fetch(`${serverBase}/admin/students`)
+                fetch(`${serverBase}/admin/classlist?classCode=${encodeURIComponent(adminClassCode)}`),
+                fetch(`${serverBase}/admin/students?classCode=${encodeURIComponent(adminClassCode)}`)
             ]);
             const cl = await clR.json();
             const st = await stR.json();
@@ -739,7 +813,7 @@
             const r = await fetch(`${serverBase}/admin/upload-classlist`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ csv: parsedCsvData.csv, validateAgainstList: strict })
+                body: JSON.stringify({ csv: parsedCsvData.csv, validateAgainstList: strict, classCode: adminClassCode })
             });
             const data = await r.json();
             if (!r.ok || !data.success) throw new Error(data.error || 'Upload failed');
@@ -760,7 +834,7 @@
     }
 
     function exportChat() {
-        fetch(`${serverBase}/admin/chats`).then(r => r.json()).then(data => {
+        fetch(`${serverBase}/admin/chats?classCode=${encodeURIComponent(adminClassCode)}`).then(r => r.json()).then(data => {
             if (!data.messages || data.messages.length === 0) { alert('No messages to export.'); return; }
             const header = 'Time,RollNumber,Name,IP,Message,HasImage\n';
             const rows = data.messages.map(m =>

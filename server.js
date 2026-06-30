@@ -4,20 +4,21 @@ const path = require('path');
 const os = require('os');
 const fs = require('fs');
 
-// ── Class List (optional) ──
-// If classlist.json exists, roll numbers can be validated against it.
-// Set "validateAgainstList": true to restrict to only listed students.
-let classList = null;
+// ── Class Lists ──
+// If classlists.json exists, we load it. Structure: { "CS101": { validateAgainstList: true, students: [...] } }
+let classLists = {};
 try {
-    classList = JSON.parse(fs.readFileSync(path.join(__dirname, 'classlist.json'), 'utf8'));
-    console.log(`📋 Class list loaded: ${classList.students.length} students`);
-    if (classList.validateAgainstList) {
-        console.log('🔒 Strict mode: only listed roll numbers are accepted');
-    } else {
-        console.log('🔓 Open mode: any roll number accepted (names auto-filled from list)');
-    }
+    classLists = JSON.parse(fs.readFileSync(path.join(__dirname, 'classlists.json'), 'utf8'));
+    console.log(`📋 Class lists loaded for: ${Object.keys(classLists).join(', ')}`);
 } catch (e) {
-    console.log('📋 No classlist.json found — open registration mode (any roll number accepted)');
+    // If the old classlist.json exists, load it as 'default'
+    try {
+        const oldClassList = JSON.parse(fs.readFileSync(path.join(__dirname, 'classlist.json'), 'utf8'));
+        classLists['default'] = oldClassList;
+        console.log(`📋 Legacy class list loaded as 'default' class.`);
+    } catch(e2) {
+        console.log('📋 No class lists found — open registration mode');
+    }
 }
 
 const app = express();
@@ -96,6 +97,8 @@ wss.on('connection', (ws, req) => {
                     const rollNumber = (data.rollNumber || '').trim().toUpperCase();
                     const deviceId = data.deviceId || 'unknown';
 
+                    const classCode = (data.classCode || 'default').trim().toUpperCase();
+
                     // ── Validate roll number ──
                     if (!rollNumber) {
                         ws.send(JSON.stringify({
@@ -104,14 +107,21 @@ wss.on('connection', (ws, req) => {
                         }));
                         break;
                     }
+                    if (!classCode) {
+                        ws.send(JSON.stringify({
+                            type: 'register_error',
+                            message: 'Class Code is required.'
+                        }));
+                        break;
+                    }
 
-                    // ── Check for duplicate roll number ──
+                    // ── Check for duplicate roll number in the same class ──
                     let duplicateFound = false;
                     for (const [existingId, existingPeer] of activePeers.entries()) {
-                        if (existingPeer.rollNumber === rollNumber && existingId !== peerId) {
+                        if (existingPeer.classCode === classCode && existingPeer.rollNumber === rollNumber && existingId !== peerId) {
                             ws.send(JSON.stringify({
                                 type: 'register_error',
-                                message: `Roll number ${rollNumber} is already in use by another student on this server.`
+                                message: `Roll number ${rollNumber} is already in use by another student in class ${classCode}.`
                             }));
                             duplicateFound = true;
                             break;
@@ -121,14 +131,15 @@ wss.on('connection', (ws, req) => {
 
                     // ── Validate against class list if strict mode ──
                     let studentName = null;
-                    if (classList && classList.students) {
-                        const student = classList.students.find(
+                    const cList = classLists[classCode];
+                    if (cList && cList.students) {
+                        const student = cList.students.find(
                             s => s.rollNo.toUpperCase() === rollNumber
                         );
-                        if (classList.validateAgainstList && !student) {
+                        if (cList.validateAgainstList && !student) {
                             ws.send(JSON.stringify({
                                 type: 'register_error',
-                                message: `Roll number ${rollNumber} is not in the class list. Contact your teacher.`
+                                message: `Roll number ${rollNumber} is not in the class list for ${classCode}. Contact your teacher.`
                             }));
                             break;
                         }
@@ -145,6 +156,7 @@ wss.on('connection', (ws, req) => {
                         ws,
                         name: peerName,
                         rollNumber: rollNumber,
+                        classCode: classCode,
                         ip: clientIp,
                         deviceId,
                         room: data.room || 'default',
@@ -153,10 +165,10 @@ wss.on('connection', (ws, req) => {
 
                     console.log(`✅ Registered: ${peerName} | Roll: ${rollNumber} | IP: ${clientIp} | Device: ${deviceId} | Total: ${activePeers.size}`);
 
-                    // Send list of other active peers
+                    // Send list of other active peers in the same class
                     const otherPeers = [];
                     for (const [id, peer] of activePeers.entries()) {
-                        if (id !== peerId) {
+                        if (id !== peerId && peer.classCode === classCode) {
                             otherPeers.push({
                                 peerId: id,
                                 peerName: peer.name,
@@ -214,12 +226,15 @@ wss.on('connection', (ws, req) => {
                     
                 case 'broadcast_chat': {
                     const senderPeer = activePeers.get(peerId);
+                    const classCode = senderPeer ? senderPeer.classCode : 'default';
                     const chatEntry = {
+                        classCode: classCode,
                         rollNumber: peerRollNumber,
                         name: peerName,
                         ip: senderPeer ? senderPeer.ip : clientIp,
                         deviceId: senderPeer ? senderPeer.deviceId : 'unknown',
                         text: data.text || null,
+                        image: data.image || null,
                         hasImage: !!data.image,
                         timestamp: Date.now(),
                         time: new Date().toISOString()
@@ -227,7 +242,7 @@ wss.on('connection', (ws, req) => {
                     chatLog.push(chatEntry);
                     if (chatLog.length > MAX_CHAT_LOG) chatLog.shift();
 
-                    broadcastToOthers(peerId, {
+                    broadcastToOthers(peerId, classCode, {
                         type: 'server_chat',
                         senderId: peerId,
                         senderName: peerName,
@@ -252,10 +267,12 @@ wss.on('connection', (ws, req) => {
     
     ws.on('close', () => {
         if (peerId) {
-            console.log(`🔌 Disconnected: ${peerName || peerId} | Roll: ${peerRollNumber || '?'} | IP: ${clientIp}`);
+            const peerData = activePeers.get(peerId);
+            const classCode = peerData ? peerData.classCode : 'default';
+            console.log(`🔌 Disconnected: ${peerName || peerId} | Roll: ${peerRollNumber || '?'} | IP: ${clientIp} | Class: ${classCode}`);
             activePeers.delete(peerId);
 
-            broadcastToAll({
+            broadcastToAll(classCode, {
                 type: 'peer_left',
                 peerId: peerId,
                 peerName: peerName || 'Unknown',
@@ -268,19 +285,19 @@ wss.on('connection', (ws, req) => {
     });
 });
 
-function broadcastToAll(message) {
+function broadcastToAll(classCode, message) {
     const messageStr = JSON.stringify(message);
     for (const [id, peer] of activePeers.entries()) {
-        if (peer.ws.readyState === WebSocket.OPEN) {
+        if (peer.classCode === classCode && peer.ws.readyState === WebSocket.OPEN) {
             peer.ws.send(messageStr);
         }
     }
 }
 
-function broadcastToOthers(senderId, message) {
+function broadcastToOthers(senderId, classCode, message) {
     const messageStr = JSON.stringify(message);
     for (const [id, peer] of activePeers.entries()) {
-        if (id !== senderId && peer.ws.readyState === WebSocket.OPEN) {
+        if (id !== senderId && peer.classCode === classCode && peer.ws.readyState === WebSocket.OPEN) {
             peer.ws.send(messageStr);
         }
     }
@@ -319,11 +336,13 @@ app.get('/stats', (req, res) => {
 // FACULTY ADMIN API  (no auth in dev — add a middleware in production)
 // ────────────────────────────────────────────────────────────────────────────────
 
-// GET /admin/students — live list of connected students
+// GET /admin/students — live list of connected students in a class
 app.get('/admin/students', (req, res) => {
+    const classCode = req.query.classCode || 'default';
+    const studentsInClass = Array.from(activePeers.values()).filter(p => p.classCode === classCode);
     res.json({
-        total: activePeers.size,
-        students: Array.from(activePeers.values()).map(p => ({
+        total: studentsInClass.length,
+        students: studentsInClass.map(p => ({
             rollNumber: p.rollNumber,
             name: p.name,
             ip: p.ip,
@@ -333,24 +352,27 @@ app.get('/admin/students', (req, res) => {
     });
 });
 
-// GET /admin/chats — all messages logged since server start
+// GET /admin/chats — all messages logged since server start for a class
 app.get('/admin/chats', (req, res) => {
+    const classCode = req.query.classCode || 'default';
+    const classChats = chatLog.filter(m => m.classCode === classCode);
     res.json({
-        total: chatLog.length,
-        messages: chatLog
+        total: classChats.length,
+        messages: classChats
     });
 });
 
-// GET /admin/classlist — current class list
+// GET /admin/classlist — current class list for a class
 app.get('/admin/classlist', (req, res) => {
-    res.json(classList || { students: [], validateAgainstList: false });
+    const classCode = req.query.classCode || 'default';
+    res.json(classLists[classCode] || { students: [], validateAgainstList: false });
 });
 
 // POST /admin/upload-classlist — upload CSV or JSON to update class list live
 // CSV format: rollNo,name  (first row can be header)
 app.post('/admin/upload-classlist', (req, res) => {
     try {
-        const { csv, validateAgainstList } = req.body;
+        const { csv, validateAgainstList, classCode = 'default' } = req.body;
         if (!csv) return res.status(400).json({ error: 'No csv field in body' });
 
         const HEADER_VARIANTS = [
@@ -375,14 +397,14 @@ app.post('/admin/upload-classlist', (req, res) => {
             students.push({ rollNo, name });
         }
 
-        classList = {
+        classLists[classCode] = {
             validateAgainstList: validateAgainstList === true || validateAgainstList === 'true',
             students
         };
 
-        // Persist to classlist.json
-        fs.writeFileSync(path.join(__dirname, 'classlist.json'), JSON.stringify(classList, null, 2));
-        console.log(`📋 Class list updated: ${students.length} students | strict=${classList.validateAgainstList}`);
+        // Persist to classlists.json
+        fs.writeFileSync(path.join(__dirname, 'classlists.json'), JSON.stringify(classLists, null, 2));
+        console.log(`📋 Class list updated for ${classCode}: ${students.length} students | strict=${classLists[classCode].validateAgainstList}`);
 
         res.json({ success: true, count: students.length, students });
     } catch (err) {

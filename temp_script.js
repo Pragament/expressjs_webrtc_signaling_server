@@ -1,740 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>LAN Party Chat · Fixed WebRTC</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 12px;
-        }
-
-        .app {
-            max-width: 1400px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            overflow: hidden;
-            height: 95vh;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 15px 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-
-        .title h1 {
-            font-size: 1.3rem;
-        }
-
-        .connection-status {
-            background: rgba(255,255,255,0.2);
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 0.75rem;
-        }
-
-        .connection-status.connected {
-            background: #4ade80;
-            color: #1e3a2f;
-        }
-
-        .main {
-            display: flex;
-            flex: 1;
-            overflow: hidden;
-            flex-direction: row;
-        }
-
-        @media (max-width: 768px) {
-            .main {
-                flex-direction: column;
-            }
-        }
-
-        .sidebar {
-            width: 280px;
-            background: #f8f9fa;
-            border-right: 1px solid #e5e7eb;
-            display: flex;
-            flex-direction: column;
-        }
-
-        @media (max-width: 768px) {
-            .sidebar {
-                width: 100%;
-                max-height: 200px;
-            }
-        }
-
-        .sidebar-header {
-            padding: 15px;
-            background: white;
-            border-bottom: 1px solid #e5e7eb;
-        }
-
-        .peer-list {
-            flex: 1;
-            overflow-y: auto;
-            padding: 10px;
-        }
-
-        .peer-item {
-            background: white;
-            padding: 10px;
-            margin-bottom: 8px;
-            border-radius: 10px;
-            border: 1px solid #e5e7eb;
-        }
-
-        .peer-item.connected {
-            border-left: 4px solid #10b981;
-            background: #f0fdf4;
-        }
-
-        .peer-item.connecting {
-            border-left: 4px solid #f59e0b;
-        }
-
-        .peer-name {
-            font-weight: 600;
-            font-size: 0.9rem;
-        }
-
-        .peer-status {
-            font-size: 0.7rem;
-            margin-top: 4px;
-        }
-
-        .peer-status.connected {
-            color: #10b981;
-        }
-
-        .peer-status.connecting {
-            color: #f59e0b;
-        }
-
-        .chat-area {
-            flex: 2;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .messages {
-            flex: 1;
-            overflow-y: auto;
-            padding: 15px;
-            background: #f9fafb;
-        }
-
-        .message {
-            margin-bottom: 12px;
-            display: flex;
-        }
-
-        .message.self {
-            justify-content: flex-end;
-        }
-
-        .message-bubble {
-            max-width: 80%;
-            padding: 8px 12px;
-            border-radius: 15px;
-            background: white;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-        }
-
-        .message.self .message-bubble {
-            background: #667eea;
-            color: white;
-        }
-
-        .message-sender {
-            font-size: 0.7rem;
-            font-weight: 600;
-            margin-bottom: 4px;
-        }
-
-        .message-text {
-            font-size: 0.9rem;
-        }
-
-        .system-message {
-            text-align: center;
-            margin: 8px 0;
-        }
-
-        .system-message span {
-            background: #e5e7eb;
-            padding: 3px 10px;
-            border-radius: 20px;
-            font-size: 0.65rem;
-            color: #6b7280;
-        }
-
-        .input-area {
-            padding: 12px;
-            background: white;
-            border-top: 1px solid #e5e7eb;
-            display: flex;
-            gap: 8px;
-        }
-
-        .input-area input {
-            flex: 1;
-            padding: 10px;
-            border: 1px solid #e5e7eb;
-            border-radius: 10px;
-            font-size: 0.9rem;
-        }
-
-        .input-area input:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-
-        .input-area button {
-            padding: 10px 20px;
-            background: #667eea;
-            color: white;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-            font-weight: 600;
-        }
-
-        .settings-panel {
-            padding: 10px 15px;
-            background: #f3f4f6;
-            border-top: 1px solid #e5e7eb;
-            display: flex;
-            gap: 8px;
-            align-items: center;
-            flex-wrap: wrap;
-            font-size: 0.8rem;
-        }
-
-        .settings-panel input {
-            padding: 6px 8px;
-            border: 1px solid #d1d5db;
-            border-radius: 6px;
-            font-size: 0.8rem;
-        }
-
-        .settings-panel button {
-            padding: 6px 12px;
-            background: #6b7280;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-        }
-
-        .debug-panel {
-            font-size: 0.65rem;
-            padding: 8px;
-            background: #1e1e2e;
-            color: #4ade80;
-            font-family: monospace;
-            border-top: 1px solid #333;
-            max-height: 150px;
-            overflow-y: auto;
-            white-space: pre-wrap;
-            word-break: break-all;
-        }
-
-        /* ── Debug Console (sidebar) ── */
-        .debug-console {
-            background: #12131a;
-            border-top: 2px solid #2d2f3e;
-            display: flex;
-            flex-direction: column;
-            max-height: 340px;
-            flex-shrink: 0;
-        }
-
-        .debug-console-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 8px 12px 6px;
-            background: #1a1b26;
-            cursor: pointer;
-            user-select: none;
-        }
-
-        .debug-console-header h4 {
-            color: #a9b1d6;
-            font-size: 0.75rem;
-            font-weight: 700;
-            letter-spacing: 0.05em;
-            text-transform: uppercase;
-            margin: 0;
-        }
-
-        .debug-console-header .dc-chevron {
-            color: #565f89;
-            font-size: 0.7rem;
-            transition: transform 0.2s;
-        }
-
-        .debug-console.collapsed .dc-chevron { transform: rotate(180deg); }
-        .debug-console.collapsed .debug-console-body { display: none; }
-
-        .dc-stats {
-            display: flex;
-            gap: 8px;
-            padding: 6px 12px;
-            background: #1a1b26;
-            border-bottom: 1px solid #2d2f3e;
-            flex-wrap: wrap;
-        }
-
-        .dc-stat-chip {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            font-size: 0.68rem;
-            font-family: monospace;
-            color: #9ece6a;
-            background: #1f2335;
-            border: 1px solid #2d2f3e;
-            border-radius: 20px;
-            padding: 2px 8px;
-            white-space: nowrap;
-        }
-
-        .dc-stat-chip .dot {
-            width: 6px; height: 6px;
-            border-radius: 50%;
-            background: #9ece6a;
-            flex-shrink: 0;
-        }
-
-        .dc-stat-chip.orange .dot { background: #ff9e64; }
-        .dc-stat-chip.orange { color: #ff9e64; }
-        .dc-stat-chip.blue .dot { background: #7aa2f7; }
-        .dc-stat-chip.blue { color: #7aa2f7; }
-
-        .dc-peers-section {
-            padding: 6px 10px;
-            background: #12131a;
-            border-bottom: 1px solid #2d2f3e;
-            max-height: 110px;
-            overflow-y: auto;
-        }
-
-        .dc-peer-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 4px 6px;
-            margin-bottom: 3px;
-            border-radius: 6px;
-            background: #1a1b26;
-            border: 1px solid #2d2f3e;
-        }
-
-        .dc-peer-name {
-            font-size: 0.7rem;
-            font-family: monospace;
-            color: #c0caf5;
-            flex: 1;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        .dc-peer-badge {
-            font-size: 0.6rem;
-            padding: 1px 6px;
-            border-radius: 10px;
-            font-family: monospace;
-            margin-left: 6px;
-            flex-shrink: 0;
-        }
-
-        .dc-peer-badge.connected { background: #1a3a2a; color: #9ece6a; border: 1px solid #2d5a3d; }
-        .dc-peer-badge.connecting { background: #2a2210; color: #ff9e64; border: 1px solid #5a4010; }
-        .dc-peer-badge.disconnected { background: #2a1a1a; color: #f7768e; border: 1px solid #5a2020; }
-
-        .dc-connect-btn {
-            font-size: 0.6rem;
-            padding: 2px 8px;
-            border: 1px solid #7aa2f7;
-            border-radius: 10px;
-            background: transparent;
-            color: #7aa2f7;
-            cursor: pointer;
-            margin-left: 6px;
-            font-family: monospace;
-            transition: all 0.15s;
-            flex-shrink: 0;
-        }
-
-        .dc-connect-btn:hover { background: #7aa2f7; color: #12131a; }
-        .dc-connect-btn:disabled { opacity: 0.35; cursor: not-allowed; border-color: #565f89; color: #565f89; }
-
-        .dc-actions {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 5px;
-            padding: 7px 10px;
-            background: #1a1b26;
-            border-bottom: 1px solid #2d2f3e;
-        }
-
-        .dc-action-btn {
-            font-size: 0.62rem;
-            padding: 3px 9px;
-            border: 1px solid #2d2f3e;
-            border-radius: 12px;
-            background: #1f2335;
-            color: #a9b1d6;
-            cursor: pointer;
-            font-family: monospace;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            transition: all 0.15s;
-            white-space: nowrap;
-        }
-
-        .dc-action-btn:hover { background: #2d2f3e; color: #c0caf5; border-color: #565f89; }
-        .dc-action-btn.offer-all { border-color: #9ece6a; color: #9ece6a; }
-        .dc-action-btn.offer-all:hover { background: #1a3a2a; }
-
-        .dc-log {
-            flex: 1;
-            overflow-y: auto;
-            padding: 6px 10px;
-            background: #12131a;
-            font-family: monospace;
-            font-size: 0.62rem;
-            color: #565f89;
-            min-height: 60px;
-            max-height: 100px;
-        }
-
-        .dc-log .log-line { margin-bottom: 1px; line-height: 1.4; }
-        .dc-log .log-line.info { color: #4ade80; }
-        .dc-log .log-line.warn { color: #ff9e64; }
-        .dc-log .log-line.error { color: #f7768e; }
-        .dc-log .log-line.system { color: #7aa2f7; }
-
-        button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        .message-image {
-            max-width: 100%;
-            border-radius: 8px;
-            margin-bottom: 5px;
-            cursor: pointer;
-            display: block;
-        }
-        
-        .attachment-btn {
-            background: #e5e7eb;
-            color: #4b5563;
-            padding: 0 15px;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-            font-size: 1.2rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .attachment-btn:hover:not(:disabled) {
-            background: #d1d5db;
-        }
-
-        .modal-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.5); display: none;
-            justify-content: center; align-items: center; z-index: 1000;
-        }
-        .modal-content {
-            background: white; padding: 25px; border-radius: 15px;
-            width: 90%; max-width: 400px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-            position: relative;
-        }
-        .modal-close {
-            position: absolute; top: 15px; right: 15px;
-            cursor: pointer; font-size: 1.2rem; background: none; border: none;
-            color: #6b7280;
-        }
-        .modal-title { margin-bottom: 20px; display: flex; align-items: center; gap: 10px; font-size: 1.2rem; font-weight: bold; color: #1f2937; }
-        .form-group { margin-bottom: 15px; }
-        .form-group label { display: block; margin-bottom: 5px; font-size: 0.85rem; font-weight: 600; color: #4b5563; }
-        .form-group input { width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.9rem; }
-        .form-actions { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
-        .btn-test { background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; padding: 8px 15px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.85rem; display: flex; align-items: center; gap: 5px; }
-        .btn-push { background: #10b981; color: white; border: none; padding: 8px 15px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.85rem; display: flex; align-items: center; gap: 5px; }
-        .btn-pull { background: #6366f1; color: white; border: none; padding: 8px 15px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.85rem; display: flex; align-items: center; gap: 5px; }
-        .help-text { font-size: 0.75rem; color: #6b7280; margin-top: 15px; line-height: 1.4; }
-        .header-btn {
-            background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4); 
-            color: white; border-radius: 50%; cursor: pointer; 
-            font-size: 1rem; transition: all 0.2s; display: flex; align-items: center; justify-content: center;
-            width: 32px; height: 32px; padding: 0;
-        }
-        .header-btn:hover { background: rgba(255,255,255,0.4); }
-    </style>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.css"/>
-    <script src="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.js.iife.js"></script>
-</head>
-<body>
-
-<!-- ═══ Login Overlay ═══ -->
-<div id="loginOverlay" style="
-    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    display: flex; align-items: center; justify-content: center;
-    z-index: 99999; transition: opacity 0.4s;
-">
-    <div style="
-        background: white; border-radius: 24px; padding: 40px 35px; width: 92%; max-width: 420px;
-        box-shadow: 0 25px 60px rgba(0,0,0,0.35); text-align: center;
-    ">
-        <div style="font-size: 2.5rem; margin-bottom: 5px;">🎓</div>
-        <h2 style="margin: 0 0 4px; font-size: 1.4rem; color: #1f2937;">Join Class Chat</h2>
-        <p style="color: #6b7280; font-size: 0.82rem; margin-bottom: 28px;">Enter your class code and roll number</p>
-
-        <div style="text-align: left; margin-bottom: 14px;">
-            <label style="display:block; font-size:0.82rem; font-weight:700; color:#374151; margin-bottom:6px;">Class Code <span style='color:#ef4444'>*</span></label>
-            <input type="text" id="loginClassCode" placeholder="e.g. CS101"
-                autocomplete="off" spellcheck="false"
-                style="
-                    width: 100%; padding: 13px 14px; border: 2px solid #e5e7eb; border-radius: 12px;
-                    font-size: 1.05rem; font-weight: 700; text-transform: uppercase;
-                    font-family: 'Segoe UI', monospace; letter-spacing: 0.05em;
-                    transition: border-color 0.2s;
-                "
-                onfocus="this.style.borderColor='#667eea'" onblur="this.style.borderColor='#e5e7eb'"
-            >
-        </div>
-
-        <div style="text-align: left; margin-bottom: 18px;">
-            <label style="display:block; font-size:0.82rem; font-weight:700; color:#374151; margin-bottom:6px;">Roll Number <span style='color:#ef4444'>*</span></label>
-            <input type="text" id="loginRollNumber" placeholder="e.g. 21CS042"
-                autocomplete="off" spellcheck="false"
-                style="
-                    width: 100%; padding: 13px 14px; border: 2px solid #e5e7eb; border-radius: 12px;
-                    font-size: 1.05rem; font-weight: 700; text-transform: uppercase;
-                    font-family: 'Segoe UI', monospace; letter-spacing: 0.05em;
-                    transition: border-color 0.2s;
-                "
-                onfocus="this.style.borderColor='#667eea'" onblur="this.style.borderColor='#e5e7eb'"
-            >
-        </div>
-
-        <input type="hidden" id="loginServerUrl" value="">
-
-        <div id="loginError" style="
-            display: none; background: #fef2f2; color: #dc2626; padding: 10px 14px;
-            border-radius: 10px; font-size: 0.82rem; margin-bottom: 16px;
-            border: 1px solid #fecaca; text-align: left;
-        "></div>
-
-        <button id="loginJoinBtn" style="
-            width: 100%; padding: 14px; border: none; border-radius: 12px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white; font-size: 1.05rem; font-weight: 700; cursor: pointer;
-            box-shadow: 0 4px 15px rgba(102,126,234,0.4); transition: transform 0.15s, box-shadow 0.15s;
-        "
-            onmousedown="this.style.transform='scale(0.97)'" onmouseup="this.style.transform=''"
-        >Join Class  →</button>
-
-        <p style="color: #9ca3af; font-size: 0.68rem; margin-top: 18px; line-height: 1.4;">
-            🔒 Your roll number is verified by the server.<br>
-            Your IP address is recorded for accountability.
-        </p>
-    </div>
-</div>
-
-<div class="app">
-    <div class="header" id="tour-header">
-        <div class="title" style="display: flex; align-items: center; gap: 10px;">
-            <h1 style="font-size: 1.1rem; margin: 0;">🎉 LAN Party Chat</h1>
-            <div id="headerUserInfo" style="display: none; background: rgba(0,0,0,0.2); padding: 4px 10px; border-radius: 12px; font-size: 0.85rem; font-family: monospace;">
-                <span id="headerClassCode" style="font-weight: bold; color: #4ade80;"></span> | 
-                <span id="headerRollNumber" style="font-weight: bold;"></span>
-            </div>
-            <button id="logoutBtn" style="display: none; background: #ef4444; color: white; border: none; padding: 4px 10px; border-radius: 8px; cursor: pointer; font-size: 0.75rem; font-weight: bold;">Logout</button>
-            <button id="settingsBtn" class="header-btn" title="Settings">⚙️</button>
-        </div>
-        <div class="connection-status" id="connectionStatus">
-            ⚫ Disconnected
-        </div>
-    </div>
-    
-    <div class="main">
-        <div class="sidebar" id="tour-sidebar" style="display:flex;flex-direction:column;overflow:hidden;">
-            <div class="sidebar-header">
-                <h3>👥 Peers</h3>
-                <div id="peerCount" style="margin-top: 5px; font-size: 1.1rem; font-weight: bold; color: #10b981;">0 Online</div>
-                <div id="connectedCount" style="font-size: 0.8rem; color: #6b7280; margin-top: 2px;">0/0 connected</div>
-            </div>
-            <div class="peer-list" id="peerList" style="flex:1;">
-                <div style="text-align: center; padding: 20px; color: #9ca3af;">Connect to see peers</div>
-            </div>
-
-            <!-- ══ Debug Console ══ -->
-            <div class="debug-console" id="debugConsole">
-                <div class="debug-console-header" id="debugConsoleToggle">
-                    <h4>🖥 Debug Console</h4>
-                    <span class="dc-chevron">▲</span>
-                </div>
-                <div class="debug-console-body" id="debugConsoleBody">
-                    <!-- Stats chips -->
-                    <div class="dc-stats">
-                        <div class="dc-stat-chip blue" id="dcWifiCount"><span class="dot"></span>0 on same WiFi</div>
-                        <div class="dc-stat-chip orange" id="dcReadyCount"><span class="dot"></span>0 ready</div>
-                        <div class="dc-stat-chip" id="dcConnectedCount"><span class="dot"></span>0 connected</div>
-                    </div>
-
-                    <!-- Per-peer connect rows -->
-                    <div class="dc-peers-section" id="dcPeerRows">
-                        <div style="color:#565f89;font-size:0.65rem;font-family:monospace;padding:4px;">No peers discovered</div>
-                    </div>
-
-                    <!-- Action buttons -->
-                    <div class="dc-actions">
-                        <button class="dc-action-btn" id="dcReconnectBtn">📡 Reconnect Signaling</button>
-                        <button class="dc-action-btn" id="dcRetryBtn">🔄 Retry Peer Handshake</button>
-                        <button class="dc-action-btn" id="dcClearLogBtn">🗑 Clear Log</button>
-                        <button class="dc-action-btn offer-all" id="dcOfferAllBtn">⚡ Offer All (0)</button>
-                    </div>
-
-                    <!-- Scrollable log -->
-                    <div class="dc-log" id="dcLog"><div class="log-line system">💡 Ready to connect</div></div>
-                </div>
-            </div>
-        </div>
-        
-        <div class="chat-area">
-            <div class="messages" id="messages">
-                <div style="text-align: center; color: #9ca3af; padding: 40px;">✨ Send a message</div>
-            </div>
-            <div class="input-area" id="tour-input">
-                <input type="file" id="fileInput" accept="image/*" style="display: none;">
-                <button id="attachmentBtn" class="attachment-btn" title="Send Image" disabled>📎</button>
-                <input type="text" id="messageInput" placeholder="Type message..." disabled>
-                <button id="sendBtn" disabled>Send</button>
-            </div>
-            <div style="text-align: center; margin-bottom: 5px;">
-                <button id="enablePushBtn" style="background: transparent; color: #6b7280; font-size: 0.8rem; border: none; text-decoration: underline; cursor: pointer;">Enable Desktop Notifications</button>
-            </div>
-            <div class="settings-panel" id="tour-settings">
-                <label>Identity:</label>
-                <input type="text" id="nameInput" style="width: 140px; background:#f3f4f6; color:#6b7280; cursor:not-allowed; font-family:monospace; font-size:0.75rem;" disabled title="Your identity is assigned by the server based on your IP address. You cannot change it.">
-                <span style="font-size:0.65rem;color:#ef4444;font-weight:600;" title="Identity is server-assigned from your IP address to prevent impersonation">🔒 IP-Locked</span>
-                <label>Server:</label>
-                <input type="text" id="serverUrl" placeholder="wss://..." style="min-width: 200px;">
-                <button id="connectBtn">Connect</button>
-                <button id="resetBtn" style="background:#ef4444;">Reset</button>
-            </div>
-            <!-- debug panel hidden; output goes to sidebar debug console -->
-            <div id="debugPanel" style="display:none;"></div>
-        </div>
-    </div>
-</div>
-
-<!-- Settings Modal -->
-<div class="modal-overlay" id="settingsModal">
-    <div class="modal-content">
-        <button class="modal-close" id="closeSettingsBtn">✖</button>
-        <div class="modal-title">
-            ⚙️ Settings
-        </div>
-        
-        <div class="form-group" style="border-bottom: 1px solid #e5e7eb; padding-bottom: 15px; margin-bottom: 15px;">
-            <button id="helpBtn" style="width: 100%; background: #667eea; color: white; border: none; padding: 10px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.9rem;">❓ Start Interactive Tour</button>
-        </div>
-
-        <div id="facultyUnlockSection" style="text-align: center;">
-            <button id="unlockFacultyBtn" style="width: 100%; background: #4b5563; color: white; border: none; padding: 10px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.9rem;">🔒 Faculty Database Access</button>
-        </div>
-
-        <div id="supabaseConfigSection" style="margin-top: 20px;">
-            <div class="modal-title" style="font-size: 1rem; margin-bottom: 15px;">
-                ⚙️ Supabase Configuration
-            </div>
-            <div class="form-group">
-                <label>Environment</label>
-                <select id="supabaseEnv" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #d1d5db;">
-                    <option value="cloud">Supabase Cloud (Default)</option>
-                    <option value="intranet">Intranet Supabase</option>
-                </select>
-            </div>
-            <div id="intranetConfigFields" style="display: none;">
-                <div class="form-group">
-                    <label>Intranet URL</label>
-                    <input type="text" id="intranetSupabaseUrl" placeholder="http://192.168.1.100:8000">
-                </div>
-                <div class="form-group">
-                    <label>Intranet API Key</label>
-                    <input type="password" id="intranetSupabaseKey" placeholder="eyJh...">
-                </div>
-                <button id="saveSupabaseConfigBtn" style="background: #10b981; color: white; border: none; padding: 8px 15px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.85rem; margin-top: 10px;">Save Config</button>
-            </div>
-        </div>
-
-        <div id="supabaseSyncSection" style="display: none;">
-            <div class="modal-title" style="font-size: 1rem; margin-bottom: 15px; margin-top: 15px;">
-                ☁️ Supabase Sync
-            </div>
-            
-            <div class="form-group">
-                <label>Supabase URL</label>
-                <input type="text" id="syncSupabaseUrl" placeholder="https://your-project.supabase.co">
-            </div>
-            <div class="form-group">
-                <label>Supabase API Key (anon public)</label>
-                <input type="password" id="syncSupabaseKey" placeholder="eyJh...">
-            </div>
-            <div class="form-group">
-                <label>Table name</label>
-                <input type="text" id="syncTableName" placeholder="daily_activities">
-            </div>
-
-            <div class="form-actions">
-                <button class="btn-test" id="btnTestSync">🔌 Test Connection</button>
-                <button class="btn-push" id="btnPushSync">↑ Push to Supabase</button>
-                <button class="btn-pull" id="btnPullSync">↓ Pull from Supabase</button>
-            </div>
-            <div class="help-text">
-                Push sends all local data to Supabase. Pull replaces local data with remote data.
-            </div>
-        </div>
-    </div>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>
     (function() {
         // DOM Elements
         const elements = {
@@ -787,35 +51,21 @@
         const SUPABASE_CLOUD_KEY = 'sb_publishable_hk6pKPo2ujDHCYvylvbY0g_P6B1v_PN';
         let supabase = null;
 
-        let peers = new Map();
-        let connections = new Map();
-        let negotiatingPeers = new Set();
-        let logs = [];
-        let chatHistory = [];
-
         function initSupabase() {
-            try {
-                if (!window.supabase) {
-                    log('Supabase JS library not loaded. Cloud sync will be disabled.', 'warn');
+            const env = localStorage.getItem('supabaseEnv') || 'cloud';
+            if (env === 'intranet') {
+                const url = localStorage.getItem('intranetSupabaseUrl');
+                const key = localStorage.getItem('intranetSupabaseKey');
+                if (url && key) {
+                    supabase = window.supabase.createClient(url, key);
+                    log('Initialized Intranet Supabase');
                     return;
+                } else {
+                    log('Intranet Supabase config missing, falling back to Cloud', 'warn');
                 }
-                const env = localStorage.getItem('supabaseEnv') || 'cloud';
-                if (env === 'intranet') {
-                    const url = localStorage.getItem('intranetSupabaseUrl');
-                    const key = localStorage.getItem('intranetSupabaseKey');
-                    if (url && key) {
-                        supabase = window.supabase.createClient(url, key);
-                        log('Initialized Intranet Supabase');
-                        return;
-                    } else {
-                        log('Intranet Supabase config missing, falling back to Cloud', 'warn');
-                    }
-                }
-                supabase = window.supabase.createClient(SUPABASE_CLOUD_URL, SUPABASE_CLOUD_KEY);
-                log('Initialized Supabase Cloud');
-            } catch (err) {
-                log('Failed to initialize Supabase: ' + err.message, 'error');
             }
+            supabase = window.supabase.createClient(SUPABASE_CLOUD_URL, SUPABASE_CLOUD_KEY);
+            log('Initialized Supabase Cloud');
         }
         initSupabase();
         
@@ -848,7 +98,12 @@
             defaultServerUrl = 'ws://localhost:3000';
         }
         
-
+        let peers = new Map();
+        let connections = new Map();
+        let negotiatingPeers = new Set();
+        let logs = [];
+        let chatHistory = [];
+        
         // Initialize - name is shown but fully locked (server-assigned from roll number)
         elements.nameInput.value = 'Not registered';
         elements.nameInput.setAttribute('title', 'Your identity is assigned by the server based on your roll number + IP address.');
@@ -1391,9 +646,9 @@
         });
 
         function connect() {
-            let url = (elements.serverUrlInput && elements.serverUrlInput.value.trim()) || defaultServerUrl;
+            let url = elements.serverUrlInput.value.trim();
             if (!url) {
-                showLoginError('Cannot determine server URL. Please refresh the page.');
+                showLoginError('Please enter a server URL.');
                 return;
             }
 
@@ -1992,48 +1247,53 @@
         };
 
         // Driver.js Walkthrough Setup
-        let driverObj = { drive: () => {} };
-        if (window.driver && window.driver.js) {
-            const driver = window.driver.js.driver;
-            driverObj = driver({
-                showProgress: true,
-                animate: true,
-                steps: [
-                    {
-                        element: '#tour-header',
-                        popover: {
-                            title: 'Welcome to LAN Party Chat! 👋',
-                            description: 'This is a simple, peer-to-peer chat application. Let\'s show you how it works.',
-                            side: 'bottom', align: 'start'
-                        }
-                    },
-                    {
-                        element: '#tour-sidebar',
-                        popover: {
-                            title: 'Peers List',
-                            description: 'Once connected, you will see other students (peers) online here. The app automatically establishes a secure WebRTC connection with them.',
-                            side: 'right', align: 'start'
-                        }
-                    },
-                    {
-                        element: '#messages',
-                        popover: {
-                            title: 'Chat History',
-                            description: 'All your messages will appear here. Messages are sent securely directly to other peers.',
-                            side: 'left', align: 'center'
-                        }
-                    },
-                    {
-                        element: '#tour-input',
-                        popover: {
-                            title: 'Send Messages',
-                            description: 'Type your message here and click Send. You can also click the paperclip icon to send images!',
-                            side: 'top', align: 'center'
-                        }
+        const driver = window.driver.js.driver;
+        const driverObj = driver({
+            showProgress: true,
+            animate: true,
+            steps: [
+                {
+                    element: '#tour-header',
+                    popover: {
+                        title: 'Welcome to LAN Party Chat! 🎉',
+                        description: 'This is a simple, peer-to-peer chat application. Let\'s show you how it works.',
+                        side: 'bottom', align: 'start'
                     }
-                ]
-            });
-        }
+                },
+                {
+                    element: '#tour-settings',
+                    popover: {
+                        title: 'Connection Settings ⚙️',
+                        description: 'First, set your Name and make sure the Server URL is correct. Click "Connect" to join the chat server.',
+                        side: 'top', align: 'center'
+                    }
+                },
+                {
+                    element: '#tour-sidebar',
+                    popover: {
+                        title: 'Peers List 👥',
+                        description: 'Once connected, you will see other students (peers) online here. The app automatically establishes a secure WebRTC connection with them.',
+                        side: 'right', align: 'start'
+                    }
+                },
+                {
+                    element: '#messages',
+                    popover: {
+                        title: 'Chat History 💬',
+                        description: 'All your messages will appear here. Messages are sent securely directly to other peers.',
+                        side: 'left', align: 'center'
+                    }
+                },
+                {
+                    element: '#tour-input',
+                    popover: {
+                        title: 'Send Messages ✍️',
+                        description: 'Type your message here and click Send. You can also click the paperclip icon (📎) to send images!',
+                        side: 'top', align: 'center'
+                    }
+                }
+            ]
+        });
 
         document.getElementById('helpBtn').addEventListener('click', () => {
             elements.settingsModal.style.display = 'none';
@@ -2045,6 +1305,4 @@
             driverObj.drive();
         }, 1000);
     })();
-</script>
-</body>
-</html>
+

@@ -1,0 +1,92 @@
+{
+  "default": {
+    "validateAgainstList": true,
+    "students": [
+      {
+        "rollNo": "1",
+        "name": "Aarav"
+      },
+      {
+        "rollNo": "2",
+        "name": "Ananya"
+      },
+      {
+        "rollNo": "3",
+        "name": "Rohan"
+      },
+      {
+        "rollNo": "4",
+        "name": "Priya"
+      },
+      {
+        "rollNo": "5",
+        "name": "Vikram"
+      },
+      {
+        "rollNo": "6",
+        "name": "Sneha"
+      },
+      {
+        "rollNo": "7",
+        "name": "Arjun"
+      },
+      {
+        "rollNo": "8",
+        "name": "Kavya"
+      },
+      {
+        "rollNo": "9",
+        "name": "Rahul"
+      },
+      {
+        "rollNo": "10",
+        "name": "Meera"
+      }
+    ]
+  },
+  "CS01": {
+    "validateAgainstList": true,
+    "students": [
+      {
+        "rollNo": "1",
+        "name": "Aarav"
+      },
+      {
+        "rollNo": "2",
+        "name": "Ananya"
+      },
+      {
+        "rollNo": "3",
+        "name": "Rohan"
+      },
+      {
+        "rollNo": "4",
+        "name": "Priya"
+      },
+      {
+        "rollNo": "5",
+        "name": "Vikram"
+      },
+      {
+        "rollNo": "6",
+        "name": "Sneha"
+      },
+      {
+        "rollNo": "7",
+        "name": "Arjun"
+      },
+      {
+        "rollNo": "8",
+        "name": "Kavya"
+      },
+      {
+        "rollNo": "9",
+        "name": "Rahul"
+      },
+      {
+        "rollNo": "10",
+        "name": "Meera"
+      }
+    ]
+  }
+}
