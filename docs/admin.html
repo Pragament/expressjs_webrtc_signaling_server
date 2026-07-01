@@ -554,10 +554,13 @@
     });
 
     function initApp() {
-        // If opened directly as a file (file://), default to localhost:3000
         const isFileProtocol = window.location.protocol === 'file:';
-        const url = isFileProtocol ? 'http://localhost:3000'
-            : (window.location.origin || 'http://localhost:3000');
+        let url = 'https://expressjs-webrtc-signaling-server.onrender.com';
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            url = 'http://localhost:3000';
+        } else if (!isFileProtocol && !window.location.hostname.includes('github.io')) {
+            url = window.location.origin || 'http://localhost:3000';
+        }
         document.getElementById('serverUrlInput').value = url;
         connectToServer(url);
         setupTabs();

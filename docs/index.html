@@ -841,11 +841,11 @@
         
         // Smart Default URL
         let defaultServerUrl = 'wss://expressjs-webrtc-signaling-server.onrender.com';
-        if (window.location.protocol !== 'file:') {
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            defaultServerUrl = 'ws://localhost:3000';
+        } else if (window.location.protocol !== 'file:' && !window.location.hostname.includes('github.io')) {
             const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             defaultServerUrl = `${wsProtocol}//${window.location.host}`;
-        } else {
-            defaultServerUrl = 'ws://localhost:3000';
         }
         
 
